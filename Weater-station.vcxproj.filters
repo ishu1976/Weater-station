@@ -24,7 +24,10 @@
     <ClInclude Include="__vm\.Weater-station.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="IOMap.h">
+    <ClInclude Include="include\IOMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ModbusCfg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
