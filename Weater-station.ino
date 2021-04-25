@@ -32,15 +32,17 @@
 
 #pragma region DECLARATIONS
 	/* local defines */
+	#define SERIAL_PRINT						// comment this define to deactivate print on serial monitor
 
 	/* global var declaration*/
 	char softwareVersion[]	= "2104.07";		// software version
 	ulong millisAtLoopBegin = 0;				// millis value at the begin of loop
 	uint taskCounterT1		= 0;				// counter for schedule call of T1 task
+	int slaveId;
 
 	/* input / output connected var */
-	int doRunState			= LOW;				// rapresents the state of GREEN led on sensor board
-	int diRainGaugeSwitch	= LOW;				// rapresents the state of rain gouge switch
+	int doRunState			= LOW;				// represents the state of GREEN led on sensor board
+	int diRainGaugeSwitch	= LOW;				// represents the state of rain gouge switch
 
 	/* status var */
 
@@ -52,29 +54,45 @@ void setup()
 	/* define i/o mode */
 	pinMode(RUN_LED, OUTPUT);
 	pinMode(RAIN_GAUGE_SWITCH, INPUT);
+	pinMode(RE_DE_PIN, OUTPUT);
 
 	/* init input var at input state */
 	diRainGaugeSwitch = digitalRead(RAIN_GAUGE_SWITCH);
 
 	/* modbus read configuration for thermobarometer sensor */
-	stBME280ModbusRdVarCfg.slaveId			= BME280_MODBUS_ID;
-	stBME280ModbusRdVarCfg.firstElementAdr	= 0x064;
-	stBME280ModbusRdVarCfg.numberOfElements	= 8;
+	arSlaveRdVarCfg[BME280_MODBUS_ID].enable			= true;
+	arSlaveRdVarCfg[BME280_MODBUS_ID].firstElementAdr	= 0x064;
+	arSlaveRdVarCfg[BME280_MODBUS_ID].numberOfElements	= 8;
 
 	/* modbus read configuration for anemometer sensor */
-	stAnemometerRdVarCfg.slaveId			= ANEMOMETER_ID;
-	stAnemometerRdVarCfg.firstElementAdr	= 0x000;
-	stAnemometerRdVarCfg.numberOfElements	= 1;
+	arSlaveRdVarCfg[ANEMOMETER_ID].enable				= true;
+	arSlaveRdVarCfg[ANEMOMETER_ID].firstElementAdr		= 0x000;
+	arSlaveRdVarCfg[ANEMOMETER_ID].numberOfElements		= 1;
 
 	/* modbus read configuration for wind vane sensor */
-	stWindVaneRdVarCfg.slaveId				= WIND_VANE_ID;
-	stWindVaneRdVarCfg.firstElementAdr		= 0x000;
-	stWindVaneRdVarCfg.numberOfElements		= 1;
+	arSlaveRdVarCfg[WIND_VANE_ID].enable				= true;
+	arSlaveRdVarCfg[WIND_VANE_ID].firstElementAdr		= 0x000;
+	arSlaveRdVarCfg[WIND_VANE_ID].numberOfElements		= 1;
 
 	/* modbus write configuration for thermobarometer sensor */
-	stBME280ModbusRdVarCfg.slaveId			= BME280_MODBUS_ID;
-	stBME280ModbusRdVarCfg.firstElementAdr	= 0x0C8;
-	stBME280ModbusRdVarCfg.numberOfElements = 6;
+	arSlaveWrVarCfg[BME280_MODBUS_ID].enable			= true;
+	arSlaveWrVarCfg[BME280_MODBUS_ID].firstElementAdr	= 0x0C8;
+	arSlaveWrVarCfg[BME280_MODBUS_ID].numberOfElements	= 6;
+
+	/* init serial at modbus speed */
+	Serial.begin(MODBUS_SPEED);
+	Serial.print(F("Start modbus/serial at "));
+	Serial.print(MODBUS_SPEED);
+	Serial.println(F(" bit/s"));
+	Serial.println();
+
+	/* software info */
+	#ifdef SERIAL_PRINT
+	Serial.println(F("MAIN WEATER STATION BOARD"));
+	Serial.print(F("Software version: "));
+	Serial.println(softwareVersion);
+	Serial.println();
+	#endif
 }
 
 /* the loop function runs over and over again until power down or reset */
@@ -109,4 +127,30 @@ void T1_Task()
 {
 	/* init task timer T1 for next call */
 	taskCounterT1 = 0;
+
+	
+
+	for (slaveId = BME280_MODBUS_ID; slaveId <= WIND_VANE_ID; slaveId++)
+	{
+		Master_RTU.begin(slaveId, Serial);
+		Master_RTU.preTransmission(setTxMode);
+		Master_RTU.postTransmission(setRxMode);
+		if (arSlaveRdVarCfg[slaveId].enable)
+		{
+			Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[slaveId].firstElementAdr, arSlaveRdVarCfg[slaveId].numberOfElements);
+		}
+	}
+
+}
+
+/* calback function used to set MAX485 on TX mode */
+void setTxMode()
+{
+	digitalWrite(RE_DE_PIN, TX_MODE);
+}
+
+/* calback function used to set MAX485 on RX mode */
+void setRxMode()
+{
+	digitalWrite(RE_DE_PIN, RX_MODE);
 }

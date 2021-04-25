@@ -19,35 +19,36 @@
 #include <Modbus.h>
 #include <ModbusIP_ENC28J60.h>
 
-/* class definitions */
-ModbusIP Slave_TCP_IP;						// Class for modbus TCP/IP menagement
-ModbusMaster Master_RTU;					// Class for modbus RTU menagement
-
 /* structure definitions */
 struct ST_ModbusRdWrCfg
 {	/* structure used to define a modbus read/write function */
-	uint slaveId;
-	uint firstElementAdr;
-	uint numberOfElements;
+	bool enable				= false;
+	uint firstElementAdr	= 0x000;
+	uint numberOfElements	= 0x000;
 };
 
 #pragma region MODBUS MASTER RTU SECTION
 	/* modbus configuration */
-	#define MODBUS_SPEED	9600
-	#define RX_TX_PIN		3					// Arduino pin connected to MAX485 (pin RE/DE)
+	#define MODBUS_SPEED			9600
+	#define RE_DE_PIN				3			// Arduino pin connected to MAX485 (pin RE/DE)
+
+	/* class definitions */
+	ModbusMaster Master_RTU;					// Class for modbus RTU menagement
 
 	/* define IDs of the slave nodes */
-	#define BME280_MODBUS_ID		1;
-	#define ANEMOMETER_ID			2;
-	#define WIND_VANE_ID			3;
+	#define BME280_MODBUS_ID		1
+	#define ANEMOMETER_ID			2
+	#define WIND_VANE_ID			3
+
+	/* synonyms for logic */
+	#define	TX_MODE					HIGH
+	#define	RX_MODE					LOW
 
 	/* define structured var for read holding register (0x03) function */
-	ST_ModbusRdWrCfg stBME280ModbusRdVarCfg;
-	ST_ModbusRdWrCfg stAnemometerRdVarCfg;
-	ST_ModbusRdWrCfg stWindVaneRdVarCfg;
+	ST_ModbusRdWrCfg arSlaveRdVarCfg[3];
 
 	/* define structured var for write holding register (0x10) function */
-	ST_ModbusRdWrCfg stBME280ModbusWrVarCfg;
+	ST_ModbusRdWrCfg arSlaveWrVarCfg[3];
 
 	/* modbus configuration for thermobarometer */
 	#define ACTUAL_TEMPERATURE		0			// register 100, actual dry bulb temperature read by sensor BME280
@@ -61,6 +62,9 @@ struct ST_ModbusRdWrCfg
 #pragma endregion
 
 #pragma region MODBUS SLAVE TCP/IP SECTION
+	/* class definitions */
+	ModbusIP Slave_TCP_IP;						// Class for modbus TCP/IP menagement
+
 	/* ENC28J60 Ethernet card configuration */
 	uint8_t ethMacAddress[] = { 0xDE, 0xAD, 0xBE, 0xEB, 0xDA, 0xED };
 	uint8_t ethIpAddress[]	= { 192, 168, 178, 17 };
