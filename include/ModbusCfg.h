@@ -26,7 +26,7 @@ struct ST_ModbusRdWrCfg
 	uint firstElementAdr	= 0x000;
 	uint numberOfElements	= 0x000;
 };
-struct ST_BME280Modbus
+struct ST_BME280ModbusData
 {	/* structure used to define all parameters read from BME280 */
 	word actualTemperature;
 	word actualPressure;
@@ -35,9 +35,16 @@ struct ST_BME280Modbus
 	word dewPoint;
 	word heatIndex;
 	word absHumidity;
-	word status;
+	word statusBME280;
 };
-
+struct ST_AnemometerData
+{	/* structure used to define all parameters read from anemometer */
+	word actualWindSpeed;
+};
+struct ST_WindVaneData
+{	/* structure used to define all parameters read from wind vane */
+	word actualWindDirection;
+};
 #pragma region MODBUS MASTER RTU SECTION
 	/* modbus configuration */
 	#define MODBUS_SPEED			9600
@@ -65,7 +72,7 @@ struct ST_BME280Modbus
 	/* define structured var for write holding register (0x10) function */
 	ST_ModbusRdWrCfg arSlaveWrVarCfg[4];
 
-	/* modbus configuration for thermobarometer */
+	/* modbus configuration for BME280 modbus */
 	#define ACTUAL_TEMPERATURE		0			// register 100, actual dry bulb temperature read by sensor BME280
 	#define ACTUAL_PRESSURE			1			// register 101, actual barometric pressure read by sensor BME280
 	#define ACTUAL_HUMIDITY			2			// register 102, actual humidity read by sensor BME280
@@ -74,6 +81,10 @@ struct ST_BME280Modbus
 	#define HEAT_INDEX				5			// register 105, heat index temperature - calculated
 	#define ABS_HUMIDITY			6			// register 106, absolute humidity - calculated
 	#define BME280_STATUS			7			// register 107, status of running program on the board
+	/* modbus configuration for anemometer */
+	#define ACTUAL_WIND_SPEED		0			// register 0, actual wind speed (value 0 to 324 --> 32.4 m/s)
+	/* modbus configuration for wind vane */
+	#define ACTUAL_WIND_DIRECTION	0			// register 0, actual wind direction (value 0 to 15)
 #pragma endregion
 
 #pragma region MODBUS SLAVE TCP/IP SECTION
