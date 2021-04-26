@@ -38,14 +38,14 @@
 	char softwareVersion[]	= "2104.07";		// software version
 	ulong millisAtLoopBegin = 0;				// millis value at the begin of loop
 	uint taskCounterT1		= 0;				// counter for schedule call of T1 task
-	int slaveId;
+	int slaveId				= BME280_MODBUS_ID;
 
 	/* input / output connected var */
 	int doRunState			= LOW;				// represents the state of GREEN led on sensor board
 	int diRainGaugeSwitch	= LOW;				// represents the state of rain gouge switch
 
-	/* status var */
-
+	/* structured var */
+	ST_BME280Modbus stBME280Modbus;
 #pragma endregion
 
 /* the setup function runs once when you press reset or power the board */
@@ -93,6 +93,11 @@ void setup()
 	Serial.println(softwareVersion);
 	Serial.println();
 	#endif
+
+	/* wait for the modbus slaves to be operational */
+	Serial.print(F("Wait for the modbus slaves to be operational..."));
+	delay(2500);
+	Serial.println(F("done!"));
 }
 
 /* the loop function runs over and over again until power down or reset */
@@ -128,19 +133,63 @@ void T1_Task()
 	/* init task timer T1 for next call */
 	taskCounterT1 = 0;
 
-	
+	/* start current node */
+	Master_RTU.begin(slaveId, Serial);
 
-	for (slaveId = BME280_MODBUS_ID; slaveId <= WIND_VANE_ID; slaveId++)
+	/* define callback functions */
+	Master_RTU.preTransmission(setTxMode);
+	Master_RTU.postTransmission(setRxMode);
+
+	/* clear buffer to avoid errors */
+	Master_RTU.clearResponseBuffer();
+
+	/* if reading function is enabled, call read function for holding registers */
+	if (arSlaveRdVarCfg[slaveId].enable)
 	{
-		Master_RTU.begin(slaveId, Serial);
-		Master_RTU.preTransmission(setTxMode);
-		Master_RTU.postTransmission(setRxMode);
-		if (arSlaveRdVarCfg[slaveId].enable)
+		/* get result of reading request */
+		uint8_t result = Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[slaveId].firstElementAdr, arSlaveRdVarCfg[slaveId].numberOfElements);
+
+		/* get values if result is success */
+		if (result == Master_RTU.ku8MBSuccess)
 		{
-			Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[slaveId].firstElementAdr, arSlaveRdVarCfg[slaveId].numberOfElements);
+			/* get all values according to the slaveId that defines the device type */
+			if (slaveId == BME280_MODBUS_ID)
+			{	/* compile structured variable.. */
+				stBME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
+				stBME280Modbus.actualPressure		= Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
+				stBME280Modbus.actualHumidity		= Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
+				stBME280Modbus.wetBulbTemperature	= Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
+				stBME280Modbus.dewPoint				= Master_RTU.getResponseBuffer(DEW_POINT);
+				stBME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
+				stBME280Modbus.absHumidity			= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
+				stBME280Modbus.status				= Master_RTU.getResponseBuffer(BME280_STATUS);
+				/* ..and print data on serial monitor */
+				BME280printData();
+			}
+		}
+		else
+		{
+			/* write on serial monitor some info about error */
+			#ifdef SERIAL_PRINT
+			Serial.print(F("Slave Id: "));
+			Serial.println(slaveId);
+			Serial.print(F("Result is: "));
+			Serial.println(result);
+			Serial.println();
+			#endif
 		}
 	}
 
+	/* check if this device is the last one.. */
+	if (slaveId < LAST_SLAVE_ID)
+	{	/* ..if not, set the next one! */
+		slaveId += 1;
+	}
+	else
+	{
+		/* otherwise, it restarts from the first node */
+		slaveId = FIRST_SLAVE_ID;
+	}
 }
 
 /* calback function used to set MAX485 on TX mode */
@@ -153,4 +202,45 @@ void setTxMode()
 void setRxMode()
 {
 	digitalWrite(RE_DE_PIN, RX_MODE);
+}
+
+/* BME280 Modbus print data function */
+void BME280printData()
+{
+	/* print data on serial monitor  */
+	#ifdef SERIAL_PRINT
+	Serial.print(F("SlaveId: "));
+	Serial.print(slaveId);
+	Serial.println(F(" BME280_MODBUS_ID"));
+
+	Serial.print(F("Dry temperature.... "));
+	Serial.print(stBME280Modbus.actualTemperature);
+	Serial.println(F(" °C"));
+
+	Serial.print(F("Pressure........... "));
+	Serial.print(stBME280Modbus.actualPressure);
+	Serial.println(F(" hPa"));
+
+	Serial.print(F("Humidity........... "));
+	Serial.print(stBME280Modbus.actualHumidity);
+	Serial.println(F(" %"));
+
+	Serial.print(F("Wet temperature.... "));
+	Serial.print(stBME280Modbus.wetBulbTemperature);
+	Serial.println(F(" °C"));
+
+	Serial.print(F("DewPoint........... "));
+	Serial.print(stBME280Modbus.dewPoint);
+	Serial.println(F(" °C"));
+
+	Serial.print(F("HeatIndex.......... "));
+	Serial.print(stBME280Modbus.heatIndex);
+	Serial.println(F(" °C"));
+
+	Serial.print(F("AbsoluteHumidity... "));
+	Serial.print(stBME280Modbus.absHumidity);
+	Serial.println(F(" %"));
+
+	Serial.println();
+	#endif
 }

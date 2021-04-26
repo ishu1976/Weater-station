@@ -16,8 +16,8 @@
 #define RAIN_GAUGE_SWITCH 	5						// Pin D5 is an INPUT
 
 /* miscellanea */
-#define T0_TASK_TIME		10						// Task T0 execution time (10 ms)
-#define T1_TASK_TIME		100						// Task T1 execution time (100 ms)
+#define T0_TASK_TIME		100						// Task T0 execution time (100 ms)
+#define T1_TASK_TIME		1000					// Task T1 execution time (1000 ms)
 #define ulong				unsigned long int	
 #define uint				unsigned short int
 

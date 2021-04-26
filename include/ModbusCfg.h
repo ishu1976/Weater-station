@@ -26,6 +26,17 @@ struct ST_ModbusRdWrCfg
 	uint firstElementAdr	= 0x000;
 	uint numberOfElements	= 0x000;
 };
+struct ST_BME280Modbus
+{	/* structure used to define all parameters read from BME280 */
+	word actualTemperature;
+	word actualPressure;
+	word actualHumidity;
+	word wetBulbTemperature;
+	word dewPoint;
+	word heatIndex;
+	word absHumidity;
+	word status;
+};
 
 #pragma region MODBUS MASTER RTU SECTION
 	/* modbus configuration */
@@ -35,20 +46,24 @@ struct ST_ModbusRdWrCfg
 	/* class definitions */
 	ModbusMaster Master_RTU;					// Class for modbus RTU menagement
 
-	/* define IDs of the slave nodes */
+	/* define IDs of the slave nodes as devices */
 	#define BME280_MODBUS_ID		1
 	#define ANEMOMETER_ID			2
 	#define WIND_VANE_ID			3
+
+	/* define IDs of the slave nodes as index */
+	#define FIRST_SLAVE_ID			BME280_MODBUS_ID
+	#define LAST_SLAVE_ID			WIND_VANE_ID
 
 	/* synonyms for logic */
 	#define	TX_MODE					HIGH
 	#define	RX_MODE					LOW
 
 	/* define structured var for read holding register (0x03) function */
-	ST_ModbusRdWrCfg arSlaveRdVarCfg[3];
+	ST_ModbusRdWrCfg arSlaveRdVarCfg[4];
 
 	/* define structured var for write holding register (0x10) function */
-	ST_ModbusRdWrCfg arSlaveWrVarCfg[3];
+	ST_ModbusRdWrCfg arSlaveWrVarCfg[4];
 
 	/* modbus configuration for thermobarometer */
 	#define ACTUAL_TEMPERATURE		0			// register 100, actual dry bulb temperature read by sensor BME280
@@ -58,7 +73,7 @@ struct ST_ModbusRdWrCfg
 	#define DEW_POINT				4			// register 104, dew point temperature - calculated
 	#define HEAT_INDEX				5			// register 105, heat index temperature - calculated
 	#define ABS_HUMIDITY			6			// register 106, absolute humidity - calculated
-	#define THERMOBAROMETER_STATUS	7			// register 107, status of running program on the board
+	#define BME280_STATUS			7			// register 107, status of running program on the board
 #pragma endregion
 
 #pragma region MODBUS SLAVE TCP/IP SECTION
