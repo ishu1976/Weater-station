@@ -2,21 +2,16 @@
  Name:		Weater_station.ino
  Created:	20/04/2021
  Author:	Andrea Santinelli
-
  Copyright: 2021 - Andrea Santinelli
-
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
-
  http://www.apache.org/licenses/LICENSE-2.0
-
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
-
  Libraries used in the project:
  - https://github.com/4-20ma/ModbusMaster			by Doc Walker
  - https://github.com/andresarmento/modbus-arduino	by André Sarmento Barbosa
@@ -32,22 +27,20 @@
 
 #pragma region DECLARATIONS
 	/* local defines */
-	#define SERIAL_PRINT						// comment this define to deactivate print on serial monitor
+	#define SERIAL_PRINT									// comment this define to deactivate print on serial monitor
 
 	/* global var declaration*/
-	char softwareVersion[]	= "2104.07";		// software version
-	ulong millisAtLoopBegin = 0;				// millis value at the begin of loop
-	uint taskCounterT1		= 0;				// counter for schedule call of T1 task
-	int slaveId				= BME280_MODBUS_ID;
+	char softwareVersion[]	= "2104.07";					// software version
+	uint8_t device			= BME280_TEMP_HUM;
 
 	/* input / output connected var */
-	int doRunState			= LOW;				// represents the state of GREEN led on sensor board
-	int diRainGaugeSwitch	= LOW;				// represents the state of rain gouge switch
+	int doRunState			= LOW;							// represents the state of GREEN led on sensor board
+	int diRainGaugeSwitch	= LOW;							// represents the state of rain gouge switch
 
 	/* structured var */
-	ST_BME280ModbusData stBME280Modbus;			// it contains the data read by the BME280 modbus sensor
-	ST_AnemometerData stAnemometer;				// it contains the data read by the anemometer together with other data about wind velocity
-	ST_WindVaneData stWindVane;					// it contains the data read from the wind vane together with other data about wind direction
+	ST_BME280ModbusData stBME280Modbus;						// it contains the data read by the BME280 modbus sensor
+	ST_AnemometerData stAnemometer;							// it contains the data read by the anemometer together with other data about wind velocity
+	ST_WindVaneData stWindVane;								// it contains the data read from the wind vane together with other data about wind direction
 #pragma endregion
 
 /* the setup function runs once when you press reset or power the board */
@@ -62,31 +55,37 @@ void setup()
 	diRainGaugeSwitch = digitalRead(RAIN_GAUGE_SWITCH);
 
 	/* modbus read configuration for thermobarometer sensor */
-	arSlaveRdVarCfg[BME280_MODBUS_ID].enable			= true;
-	arSlaveRdVarCfg[BME280_MODBUS_ID].firstElementAdr	= 0x064;
-	arSlaveRdVarCfg[BME280_MODBUS_ID].numberOfElements	= 8;
+	arSlaveRdVarCfg[BME280_TEMP_HUM].enable				= true;
+	arSlaveRdVarCfg[BME280_TEMP_HUM].firstElementAdr	= 0x64;
+	arSlaveRdVarCfg[BME280_TEMP_HUM].numberOfElements	= 8;
 
 	/* modbus read configuration for anemometer sensor */
-	arSlaveRdVarCfg[ANEMOMETER_ID].enable				= true;
-	arSlaveRdVarCfg[ANEMOMETER_ID].firstElementAdr		= 0x000;
-	arSlaveRdVarCfg[ANEMOMETER_ID].numberOfElements		= 1;
+	arSlaveRdVarCfg[ANEMOMETER].enable				= true;
+	arSlaveRdVarCfg[ANEMOMETER].firstElementAdr		= 0x00;
+	arSlaveRdVarCfg[ANEMOMETER].numberOfElements	= 1;
 
 	/* modbus read configuration for wind vane sensor */
-	arSlaveRdVarCfg[WIND_VANE_ID].enable				= true;
-	arSlaveRdVarCfg[WIND_VANE_ID].firstElementAdr		= 0x000;
-	arSlaveRdVarCfg[WIND_VANE_ID].numberOfElements		= 1;
+	arSlaveRdVarCfg[WIND_VANE].enable				= true;
+	arSlaveRdVarCfg[WIND_VANE].firstElementAdr		= 0x00;
+	arSlaveRdVarCfg[WIND_VANE].numberOfElements		= 1;
 
 	/* modbus write configuration for thermobarometer sensor */
-	arSlaveWrVarCfg[BME280_MODBUS_ID].enable			= true;
-	arSlaveWrVarCfg[BME280_MODBUS_ID].firstElementAdr	= 0x0C8;
-	arSlaveWrVarCfg[BME280_MODBUS_ID].numberOfElements	= 6;
+	arSlaveWrVarCfg[BME280_TEMP_HUM].enable				= true;
+	arSlaveWrVarCfg[BME280_TEMP_HUM].firstElementAdr	= 0xC8;
+	arSlaveWrVarCfg[BME280_TEMP_HUM].numberOfElements	= 6;
+
+	/* define callback functions for modbus master */
+	Master_RTU.preTransmission(setTxMode);
+	Master_RTU.postTransmission(setRxMode);
 
 	/* init serial at modbus speed */
 	Serial.begin(MODBUS_SPEED);
+	#ifdef SERIAL_PRINT
 	Serial.print(F("Start modbus/serial at "));
 	Serial.print(MODBUS_SPEED);
 	Serial.println(F(" bit/s"));
 	Serial.println();
+	#endif
 
 	/* software info */
 	#ifdef SERIAL_PRINT
@@ -97,9 +96,7 @@ void setup()
 	#endif
 
 	/* wait for the modbus slaves to be operational */
-	Serial.print(F("Wait for the modbus slaves to be operational..."));
 	delay(2500);
-	Serial.println(F("done!"));
 
 	/* board setup is completed */
 	doRunState = HIGH;
@@ -112,52 +109,74 @@ void loop()
 	millisAtLoopBegin = millis();
 
 	/* read digital input */
-	
-	/* wait for execution of task T1 */
-	if (taskCounterT1 < T1_TASK_TIME)
-	{
-		/* elapsed time is updated at every loop */
-		taskCounterT1 += T0_TASK_TIME;
-	}
-	else
-	{
-		/* execute task T1 */
-		T1_Task();
-	}
+
+	#pragma region SCHEDULER
+		/* execution of scheduled task T1 */
+		if (taskCounter[T1_TASK] >= T1_TASK_TIME)
+		{
+			/* reset counter and call function for BME280_TEMP_HUM */
+			taskCounter[T1_TASK] = 0;
+			modbusRequest(BME280_TEMP_HUM);
+		}
+		else
+		{
+			taskCounter[T1_TASK] += LOOP_TIME;
+		}
+		/* execution of scheduled task T2 */
+		if (taskCounter[T2_TASK] >= T2_TASK_TIME)
+		{
+			/* reset counter and call function for ANEMOMETER */
+			taskCounter[T2_TASK] = 0;
+			modbusRequest(ANEMOMETER);
+		}
+		else
+		{
+			taskCounter[T2_TASK] += LOOP_TIME;
+		}
+		/* execution of scheduled task T3 */
+		if (taskCounter[T3_TASK] >= T3_TASK_TIME)
+		{
+			/* reset counter and call function for WIND_VANE */
+			taskCounter[T3_TASK] = 0;
+			modbusRequest(WIND_VANE);
+		}
+		else
+		{
+			taskCounter[T3_TASK] += LOOP_TIME;
+		}
+	#pragma endregion
+
 	/* write digital output */
 	digitalWrite(RUN_LED, doRunState);
 
 	/* END LOOP: wait task time (every loop has a fixed duration) */
-	while (abs(millis() - millisAtLoopBegin) <= T0_TASK_TIME);
+	while (abs(millis() - millisAtLoopBegin) <= LOOP_TIME);
 }
 
-/* task T1 is executed every time the scheduling time has elapsed */
-void T1_Task()
+/* function modbusRequest is executed every time the scheduling time has elapsed */
+void modbusRequest(uint8_t device)
 {
-	/* init task timer T1 for next call */
-	taskCounterT1 = 0;
-
 	/* start current node */
-	Master_RTU.begin(slaveId, Serial);
-
-	/* define callback functions */
-	Master_RTU.preTransmission(setTxMode);
-	Master_RTU.postTransmission(setRxMode);
+	Master_RTU.begin(modbusNode[device], Serial);
 
 	/* clear buffer to avoid errors */
 	Master_RTU.clearResponseBuffer();
 
 	/* if reading function is enabled, call read function for holding registers */
-	if (arSlaveRdVarCfg[slaveId].enable)
+	if (arSlaveRdVarCfg[device].enable)
 	{
 		/* get result of reading request */
-		uint8_t result = Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[slaveId].firstElementAdr, arSlaveRdVarCfg[slaveId].numberOfElements);
+		uint8_t result = Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[device].firstElementAdr, arSlaveRdVarCfg[device].numberOfElements);
 
-		/* get values if result is success */
-		if (result == Master_RTU.ku8MBSuccess)
-		{	
+		/* manages the modbus function for the device type required */
+		switch (device)
+		{
 			/* get all the values ​​related to the BME280 sensor */
-			if (slaveId == BME280_MODBUS_ID)
+			case BME280_TEMP_HUM:
+			/* write info about connection status */
+			stBME280Modbus.connectionStatus = result;
+			/* BME280 response is OK */
+			if (result == Master_RTU.ku8MBSuccess)
 			{
 				/* compile structured variable.. */
 				stBME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
@@ -171,41 +190,42 @@ void T1_Task()
 				/* ..and print data on serial monitor */
 				BME280printData();
 			}
+			break;
+
 			/* get all the values ​​related to the anemometer sensor */
-			if (slaveId == ANEMOMETER_ID)
+			case ANEMOMETER:
+			/* write info about connection status */
+			stAnemometer.connectionStatus = result;
+			/* anemometer response is OK */
+			if (result == Master_RTU.ku8MBSuccess)
 			{
 				/* compile structured variable.. */
 				stAnemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
 			}
+			break;
+
 			/* get all the values ​​related to the wind vane sensor */
-			if (slaveId == WIND_VANE_ID)
+			case WIND_VANE:
+			/* write info about connection status */
+			stWindVane.connectionStatus = result;
+			/* wind vane response is OK */
+			if (result == Master_RTU.ku8MBSuccess)
 			{
 				/* compile structured variable.. */
 				stWindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
 			}
+			break;
 		}
-		else
-		{
-			/* write on serial monitor some info about error */
-			#ifdef SERIAL_PRINT
-			Serial.print(F("Slave Id is "));
-			Serial.print(slaveId);
-			Serial.print(F(" and result is "));
-			Serial.println(functionStatus(result));
-			Serial.println();
-			#endif
-		}
-	}
-
-	/* check if this device is the last one.. */
-	if (slaveId < LAST_SLAVE_ID)
-	{	/* ..if not, set the next one! */
-		slaveId += 1;
-	}
-	else
-	{
-		/* otherwise, it restarts from the first node */
-		slaveId = FIRST_SLAVE_ID;
+		/* print result on serial monitor */
+		#ifdef SERIAL_PRINT
+		Serial.print(F("Request made to the node "));
+		Serial.print(modbusNode[device]);
+		Serial.print(F(". Result is "));
+		Serial.println(getModbusErrorInfo(result));
+		Serial.print(F("Millis time: "));
+		Serial.println(millis() / 1000.0F);
+		Serial.println();
+		#endif
 	}
 }
 
@@ -225,46 +245,41 @@ void setRxMode()
 void BME280printData()
 {
 	/* print data on serial monitor  */
-	#ifdef SERIAL_PRINT
-	Serial.print(F("SlaveId: "));
-	Serial.print(slaveId);
-	Serial.println(F(" BME280_MODBUS_ID"));
-	Serial.println();
-
+#ifdef SERIAL_PRINT
 	Serial.print(F("Dry temperature.... "));
-	Serial.print(stBME280Modbus.actualTemperature);
+	Serial.print(stBME280Modbus.actualTemperature / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("Pressure........... "));
-	Serial.print(stBME280Modbus.actualPressure);
+	Serial.print(stBME280Modbus.actualPressure / 10.0F);
 	Serial.println(F(" hPa"));
 
 	Serial.print(F("Humidity........... "));
-	Serial.print(stBME280Modbus.actualHumidity);
+	Serial.print(stBME280Modbus.actualHumidity / 10.0F);
 	Serial.println(F(" %"));
 
 	Serial.print(F("Wet temperature.... "));
-	Serial.print(stBME280Modbus.wetBulbTemperature);
+	Serial.print(stBME280Modbus.wetBulbTemperature / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("DewPoint........... "));
-	Serial.print(stBME280Modbus.dewPoint);
+	Serial.print(stBME280Modbus.dewPoint / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("HeatIndex.......... "));
-	Serial.print(stBME280Modbus.heatIndex);
+	Serial.print(stBME280Modbus.heatIndex / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("AbsoluteHumidity... "));
-	Serial.print(stBME280Modbus.absHumidity);
+	Serial.print(stBME280Modbus.absHumidity / 10.0F);
 	Serial.println(F(" %"));
 
 	Serial.println();
-	#endif
+#endif
 }
 
-/* ModbusMaster function status decoding */
-String functionStatus(uint8_t result)
+/* get a string about modbus error */
+char* getModbusErrorInfo(uint8_t result)
 {
 		 if (result == Master_RTU.ku8MBSuccess)				return "0x00: ku8MBSuccess";
 	else if (result == Master_RTU.ku8MBIllegalFunction)		return "0x01: ku8MBIllegalFunction";
@@ -274,5 +289,5 @@ String functionStatus(uint8_t result)
 	else if (result == Master_RTU.ku8MBInvalidSlaveID)		return "0xE0: ku8MBInvalidSlaveID";
 	else if (result == Master_RTU.ku8MBInvalidFunction)		return "0xE1: ku8MBInvalidFunction";
 	else if (result == Master_RTU.ku8MBResponseTimedOut)	return "0xE2: ku8MBResponseTimedOut";
-	else if (result == Master_RTU.ku8MBInvalidCRC)			return "0xE3: ku8MBInvalidCRC";	
+	else if (result == Master_RTU.ku8MBInvalidCRC)			return "0xE3: ku8MBInvalidCRC";
 }

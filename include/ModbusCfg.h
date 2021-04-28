@@ -22,12 +22,13 @@
 /* structure definitions */
 struct ST_ModbusRdWrCfg
 {	/* structure used to define a modbus read/write function */
-	bool enable				= false;
-	uint firstElementAdr	= 0x000;
-	uint numberOfElements	= 0x000;
+	bool enable					= false;
+	uint8_t firstElementAdr		= 0x00;
+	uint8_t numberOfElements	= 0x00;
 };
 struct ST_BME280ModbusData
 {	/* structure used to define all parameters read from BME280 */
+	word connectionStatus;
 	word actualTemperature;
 	word actualPressure;
 	word actualHumidity;
@@ -39,10 +40,12 @@ struct ST_BME280ModbusData
 };
 struct ST_AnemometerData
 {	/* structure used to define all parameters read from anemometer */
+	word connectionStatus;
 	word actualWindSpeed;
 };
 struct ST_WindVaneData
 {	/* structure used to define all parameters read from wind vane */
+	word connectionStatus;
 	word actualWindDirection;
 };
 #pragma region MODBUS MASTER RTU SECTION
@@ -53,24 +56,28 @@ struct ST_WindVaneData
 	/* class definitions */
 	ModbusMaster Master_RTU;					// Class for modbus RTU menagement
 
-	/* define IDs of the slave nodes as devices */
-	#define BME280_MODBUS_ID		1
-	#define ANEMOMETER_ID			2
-	#define WIND_VANE_ID			3
+	/* define IDs of the slave nodes as devices (used as array pointer) */
+	#define BME280_TEMP_HUM		0
+	#define ANEMOMETER			1
+	#define WIND_VANE			2
 
-	/* define IDs of the slave nodes as index */
-	#define FIRST_SLAVE_ID			BME280_MODBUS_ID
-	#define LAST_SLAVE_ID			WIND_VANE_ID
+	/* define slave node address */
+	#define BME280_TEMP_HUM_NODE	1
+	#define ANEMOMETER_NODE			2
+	#define WIND_VANE_NODE			3
 
 	/* synonyms for logic */
 	#define	TX_MODE					HIGH
 	#define	RX_MODE					LOW
 
+	/* init array with modbus node defines */
+	uint8_t modbusNode[] = { BME280_TEMP_HUM_NODE, ANEMOMETER_NODE, WIND_VANE_NODE };
+
 	/* define structured var for read holding register (0x03) function */
-	ST_ModbusRdWrCfg arSlaveRdVarCfg[4];
+	ST_ModbusRdWrCfg arSlaveRdVarCfg[3];
 
 	/* define structured var for write holding register (0x10) function */
-	ST_ModbusRdWrCfg arSlaveWrVarCfg[4];
+	ST_ModbusRdWrCfg arSlaveWrVarCfg[3];
 
 	/* modbus configuration for BME280 modbus */
 	#define ACTUAL_TEMPERATURE		0			// register 100, actual dry bulb temperature read by sensor BME280
