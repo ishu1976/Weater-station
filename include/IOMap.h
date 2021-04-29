@@ -31,7 +31,7 @@
 
 /* global var declarations */
 ulong millisAtLoopBegin		= 0;	// millis value at the begin of loop
-int taskCounter[]			= { T1_TASK_TIME, T2_TASK_TIME, T3_TASK_TIME };
+ulong taskCounter[]			= { 0, 0, 0 };
 
 /* structure definitions */
 struct ST_Timer

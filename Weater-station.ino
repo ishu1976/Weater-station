@@ -32,6 +32,7 @@
 	/* global var declaration*/
 	char softwareVersion[]	= "2104.07";					// software version
 	uint8_t device			= BME280_TEMP_HUM;
+	bool serialBusy			= false;
 
 	/* input / output connected var */
 	int doRunState			= LOW;							// represents the state of GREEN led on sensor board
@@ -111,60 +112,54 @@ void loop()
 	/* read digital input */
 
 	#pragma region SCHEDULER
-		/* execution of scheduled task T1 */
-		if (taskCounter[T1_TASK] >= T1_TASK_TIME)
+	/* execution of scheduled task T1 */
+		if (((taskCounter[T1_TASK] == 0) || (abs(millis() - taskCounter[T1_TASK]) >= T1_TASK_TIME)) && !serialBusy)
 		{
 			/* reset counter and call function for BME280_TEMP_HUM */
-			taskCounter[T1_TASK] = 0;
+			taskCounter[T1_TASK] = millis();
 			modbusRequest(BME280_TEMP_HUM);
 		}
-		else
-		{
-			taskCounter[T1_TASK] += LOOP_TIME;
-		}
 		/* execution of scheduled task T2 */
-		if (taskCounter[T2_TASK] >= T2_TASK_TIME)
+		else if (((taskCounter[T2_TASK] == 0) || (abs(millis() - taskCounter[T2_TASK]) >= T2_TASK_TIME)) && !serialBusy)
 		{
 			/* reset counter and call function for ANEMOMETER */
-			taskCounter[T2_TASK] = 0;
+			taskCounter[T2_TASK] = millis();
 			modbusRequest(ANEMOMETER);
 		}
-		else
-		{
-			taskCounter[T2_TASK] += LOOP_TIME;
-		}
 		/* execution of scheduled task T3 */
-		if (taskCounter[T3_TASK] >= T3_TASK_TIME)
+		else if (((taskCounter[T3_TASK] == 0) || (abs(millis() - taskCounter[T3_TASK]) >= T3_TASK_TIME)) && !serialBusy)
 		{
 			/* reset counter and call function for WIND_VANE */
-			taskCounter[T3_TASK] = 0;
+			taskCounter[T3_TASK] = millis();
 			modbusRequest(WIND_VANE);
-		}
-		else
-		{
-			taskCounter[T3_TASK] += LOOP_TIME;
 		}
 	#pragma endregion
 
 	/* write digital output */
 	digitalWrite(RUN_LED, doRunState);
 
-	/* END LOOP: wait task time (every loop has a fixed duration) */
-	while (abs(millis() - millisAtLoopBegin) <= LOOP_TIME);
+	/* END LOOP: if current cycle is shorter than task time, wait! */
+	if (abs(millis() - millisAtLoopBegin) < LOOP_TIME)
+	{
+		while (abs(millis() - millisAtLoopBegin) <= LOOP_TIME);
+	}
 }
 
 /* function modbusRequest is executed every time the scheduling time has elapsed */
 void modbusRequest(uint8_t device)
 {
-	/* start current node */
-	Master_RTU.begin(modbusNode[device], Serial);
-
-	/* clear buffer to avoid errors */
-	Master_RTU.clearResponseBuffer();
-
 	/* if reading function is enabled, call read function for holding registers */
 	if (arSlaveRdVarCfg[device].enable)
 	{
+		/* declare seria as busy */
+		serialBusy = true;
+
+		/* start current node */
+		Master_RTU.begin(modbusNode[device], Serial);
+
+		/* clear buffer to avoid errors */
+		Master_RTU.clearResponseBuffer();
+
 		/* get result of reading request */
 		uint8_t result = Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[device].firstElementAdr, arSlaveRdVarCfg[device].numberOfElements);
 
@@ -173,47 +168,72 @@ void modbusRequest(uint8_t device)
 		{
 			/* get all the values ​​related to the BME280 sensor */
 			case BME280_TEMP_HUM:
-			/* write info about connection status */
-			stBME280Modbus.connectionStatus = result;
-			/* BME280 response is OK */
-			if (result == Master_RTU.ku8MBSuccess)
-			{
-				/* compile structured variable.. */
-				stBME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
-				stBME280Modbus.actualPressure		= Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
-				stBME280Modbus.actualHumidity		= Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
-				stBME280Modbus.wetBulbTemperature	= Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
-				stBME280Modbus.dewPoint				= Master_RTU.getResponseBuffer(DEW_POINT);
-				stBME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
-				stBME280Modbus.absHumidity			= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
-				stBME280Modbus.statusBME280			= Master_RTU.getResponseBuffer(BME280_STATUS);
-				/* ..and print data on serial monitor */
-				BME280printData();
-			}
+				/* write info about connection status */
+				stBME280Modbus.connectionStatus = result;
+				/* BME280 response is OK */
+				if (result == Master_RTU.ku8MBSuccess)
+				{
+					/* compile structured variable.. */
+					stBME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
+					stBME280Modbus.actualPressure		= Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
+					stBME280Modbus.actualHumidity		= Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
+					stBME280Modbus.wetBulbTemperature	= Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
+					stBME280Modbus.dewPoint				= Master_RTU.getResponseBuffer(DEW_POINT);
+					stBME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
+					stBME280Modbus.absHumidity			= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
+					stBME280Modbus.statusBME280			= Master_RTU.getResponseBuffer(BME280_STATUS);
+					/* ..print data on serial monitor.. */
+					BME280PrintData();
+					/* ..and release serial for next com */
+					serialBusy = false;
+				}
+				else
+				{
+					/* release serial for next com */
+					serialBusy = false;
+				}
 			break;
 
 			/* get all the values ​​related to the anemometer sensor */
 			case ANEMOMETER:
-			/* write info about connection status */
-			stAnemometer.connectionStatus = result;
-			/* anemometer response is OK */
-			if (result == Master_RTU.ku8MBSuccess)
-			{
-				/* compile structured variable.. */
-				stAnemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
-			}
+				/* write info about connection status */
+				stAnemometer.connectionStatus = result;
+				/* anemometer response is OK */
+				if (result == Master_RTU.ku8MBSuccess)
+				{
+					/* compile structured variable.. */
+					stAnemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
+					/* ..print data on serial monitor.. */
+					anemometerPrintData();
+					/* ..and release serial for next com */
+					serialBusy = false;
+				}
+				else
+				{
+					/* release serial for next com */
+					serialBusy = false;
+				}
 			break;
 
 			/* get all the values ​​related to the wind vane sensor */
 			case WIND_VANE:
-			/* write info about connection status */
-			stWindVane.connectionStatus = result;
-			/* wind vane response is OK */
-			if (result == Master_RTU.ku8MBSuccess)
-			{
-				/* compile structured variable.. */
-				stWindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
-			}
+				/* write info about connection status */
+				stWindVane.connectionStatus = result;
+				/* wind vane response is OK */
+				if (result == Master_RTU.ku8MBSuccess)
+				{
+					/* compile structured variable.. */
+					stWindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
+					/* ..print data on serial monitor.. */
+					windVanePrintData();
+					/* ..and release serial for next com */
+					serialBusy = false;
+				}
+				else
+				{
+					/* release serial for next com */
+					serialBusy = false;
+				}
 			break;
 		}
 		/* print result on serial monitor */
@@ -242,7 +262,7 @@ void setRxMode()
 }
 
 /* BME280 Modbus print data function */
-void BME280printData()
+void BME280PrintData()
 {
 	/* print data on serial monitor  */
 #ifdef SERIAL_PRINT
@@ -273,6 +293,32 @@ void BME280printData()
 	Serial.print(F("AbsoluteHumidity... "));
 	Serial.print(stBME280Modbus.absHumidity / 10.0F);
 	Serial.println(F(" %"));
+
+	Serial.println();
+#endif
+}
+
+/* anemometer print data function */
+void anemometerPrintData()
+{
+	/* print data on serial monitor  */
+#ifdef SERIAL_PRINT
+	Serial.print(F("Actual wind speed.. "));
+	Serial.print(stAnemometer.actualWindSpeed / 10.0F);
+	Serial.println(F(" m/s"));
+
+	Serial.println();
+#endif
+}
+
+/* anemometer print data function */
+void windVanePrintData()
+{
+	/* print data on serial monitor  */
+#ifdef SERIAL_PRINT
+	Serial.print(F("Wind direction..... "));
+	Serial.print(stWindVane.actualWindDirection);
+	Serial.println(F(" enum"));
 
 	Serial.println();
 #endif
