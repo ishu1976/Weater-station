@@ -151,17 +151,31 @@ void modbusRequest(uint8_t device)
 	/* if reading function is enabled, call read function for holding registers */
 	if (arSlaveRdVarCfg[device].enable)
 	{
-		/* declare seria as busy */
-		serialBusy = true;
-
 		/* start current node */
 		Master_RTU.begin(modbusNode[device], Serial);
 
 		/* clear buffer to avoid errors */
 		Master_RTU.clearResponseBuffer();
 
-		/* get result of reading request */
+		/* declare serial as busy */
+		serialBusy = true;
+
+		/* get result of reading request.. */
 		uint8_t result = Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[device].firstElementAdr, arSlaveRdVarCfg[device].numberOfElements);
+
+		/* ..and print it on serial monitor */
+		#ifdef SERIAL_PRINT
+		Serial.print(F("Request made to the node "));
+		Serial.print(modbusNode[device]);
+		Serial.print(F(". Result is "));
+		Serial.println(getModbusErrorInfo(result));
+		Serial.print(F("Millis time: "));
+		Serial.println(millis() / 1000.0F);
+		Serial.println();
+		#endif
+		
+		/* ..and release serial for next com */
+		serialBusy = false;
 
 		/* manages the modbus function for the device type required */
 		switch (device)
@@ -184,13 +198,6 @@ void modbusRequest(uint8_t device)
 					stBME280Modbus.statusBME280			= Master_RTU.getResponseBuffer(BME280_STATUS);
 					/* ..print data on serial monitor.. */
 					BME280PrintData();
-					/* ..and release serial for next com */
-					serialBusy = false;
-				}
-				else
-				{
-					/* release serial for next com */
-					serialBusy = false;
 				}
 			break;
 
@@ -205,13 +212,6 @@ void modbusRequest(uint8_t device)
 					stAnemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
 					/* ..print data on serial monitor.. */
 					anemometerPrintData();
-					/* ..and release serial for next com */
-					serialBusy = false;
-				}
-				else
-				{
-					/* release serial for next com */
-					serialBusy = false;
 				}
 			break;
 
@@ -226,26 +226,9 @@ void modbusRequest(uint8_t device)
 					stWindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
 					/* ..print data on serial monitor.. */
 					windVanePrintData();
-					/* ..and release serial for next com */
-					serialBusy = false;
-				}
-				else
-				{
-					/* release serial for next com */
-					serialBusy = false;
 				}
 			break;
 		}
-		/* print result on serial monitor */
-		#ifdef SERIAL_PRINT
-		Serial.print(F("Request made to the node "));
-		Serial.print(modbusNode[device]);
-		Serial.print(F(". Result is "));
-		Serial.println(getModbusErrorInfo(result));
-		Serial.print(F("Millis time: "));
-		Serial.println(millis() / 1000.0F);
-		Serial.println();
-		#endif
 	}
 }
 
