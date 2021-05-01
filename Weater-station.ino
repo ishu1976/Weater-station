@@ -30,18 +30,18 @@
 	#define SERIAL_PRINT									// comment this define to deactivate print on serial monitor
 
 	/* global var declaration*/
-	char softwareVersion[]	= "2104.07";					// software version
-	uint8_t device			= BME280_TEMP_HUM;
-	bool serialBusy			= false;
+	char softwareVersion[]		= "2104.07";				// software version
+	uint8_t device				= BME280_TEMP_HUM;
+	bool serialBusy				= false;
 
 	/* input / output connected var */
-	int doRunState			= LOW;							// represents the state of GREEN led on sensor board
-	int diRainGaugeSwitch	= LOW;							// represents the state of rain gouge switch
+	uint8_t doRunState			= LOW;						// represents the state of GREEN led on sensor board
+	uint8_t diRainGaugeSwitch	= LOW;						// represents the state of rain gouge switch
 
 	/* structured var */
-	ST_BME280ModbusData stBME280Modbus;						// it contains the data read by the BME280 modbus sensor
-	ST_AnemometerData stAnemometer;							// it contains the data read by the anemometer together with other data about wind velocity
-	ST_WindVaneData stWindVane;								// it contains the data read from the wind vane together with other data about wind direction
+	BME280ModbusData BME280Modbus;							// it contains the data read by the BME280 modbus sensor
+	AnemometerData Anemometer;								// it contains the data read by the anemometer together with other data about wind velocity
+	WindVaneData WindVane;									// it contains the data read from the wind vane together with other data about wind direction
 #pragma endregion
 
 /* the setup function runs once when you press reset or power the board */
@@ -56,24 +56,25 @@ void setup()
 	diRainGaugeSwitch = digitalRead(RAIN_GAUGE_SWITCH);
 
 	/* modbus read configuration for thermobarometer sensor */
-	arSlaveRdVarCfg[BME280_TEMP_HUM].enable				= true;
-	arSlaveRdVarCfg[BME280_TEMP_HUM].firstElementAdr	= 0x64;
-	arSlaveRdVarCfg[BME280_TEMP_HUM].numberOfElements	= 8;
+	slaveCfg[BME280_TEMP_HUM].slaveId	= 0x01;
+	slaveCfg[BME280_TEMP_HUM].readAddr	= 0x64;
+	slaveCfg[BME280_TEMP_HUM].readQty	= 8;
+	slaveCfg[BME280_TEMP_HUM].writeAddr = 0xCb;
+	slaveCfg[BME280_TEMP_HUM].writeQty	= 6;
 
 	/* modbus read configuration for anemometer sensor */
-	arSlaveRdVarCfg[ANEMOMETER].enable				= true;
-	arSlaveRdVarCfg[ANEMOMETER].firstElementAdr		= 0x00;
-	arSlaveRdVarCfg[ANEMOMETER].numberOfElements	= 1;
+	slaveCfg[ANEMOMETER].slaveId	= 0x02;
+	slaveCfg[ANEMOMETER].readAddr	= 0x00;
+	slaveCfg[ANEMOMETER].readQty	= 1;
+	slaveCfg[ANEMOMETER].writeAddr	= 0x00;
+	slaveCfg[ANEMOMETER].writeQty	= 0;
 
 	/* modbus read configuration for wind vane sensor */
-	arSlaveRdVarCfg[WIND_VANE].enable				= true;
-	arSlaveRdVarCfg[WIND_VANE].firstElementAdr		= 0x00;
-	arSlaveRdVarCfg[WIND_VANE].numberOfElements		= 1;
-
-	/* modbus write configuration for thermobarometer sensor */
-	arSlaveWrVarCfg[BME280_TEMP_HUM].enable				= true;
-	arSlaveWrVarCfg[BME280_TEMP_HUM].firstElementAdr	= 0xC8;
-	arSlaveWrVarCfg[BME280_TEMP_HUM].numberOfElements	= 6;
+	slaveCfg[WIND_VANE].slaveId		= 0x03;
+	slaveCfg[WIND_VANE].readAddr	= 0x00;
+	slaveCfg[WIND_VANE].readQty		= 1;
+	slaveCfg[WIND_VANE].writeAddr	= 0x00;
+	slaveCfg[WIND_VANE].writeQty	= 0;
 
 	/* define callback functions for modbus master */
 	Master_RTU.preTransmission(setTxMode);
@@ -95,7 +96,7 @@ void setup()
 	Serial.println(softwareVersion);
 	Serial.println();
 	#endif
-
+	
 	/* wait for the modbus slaves to be operational */
 	delay(2500);
 
@@ -133,6 +134,8 @@ void loop()
 			taskCounter[T3_TASK] = millis();
 			modbusRequest(WIND_VANE);
 		}
+		/* flush serial to avoid unpredictable behavior */
+		Serial.flush();
 	#pragma endregion
 
 	/* write digital output */
@@ -148,29 +151,29 @@ void loop()
 /* function modbusRequest is executed every time the scheduling time has elapsed */
 void modbusRequest(uint8_t device)
 {
-	/* if reading function is enabled, call read function for holding registers */
-	if (arSlaveRdVarCfg[device].enable)
+	/* if reading function is enabled (qty is greater than 0), call read function for holding registers */
+	if (slaveCfg[device].readQty > 0)
 	{
 		/* start current node */
-		Master_RTU.begin(modbusNode[device], Serial);
+		Master_RTU.begin(slaveCfg[device].slaveId, Serial);
 
 		/* clear buffer to avoid errors */
 		Master_RTU.clearResponseBuffer();
-
+		
 		/* declare serial as busy */
 		serialBusy = true;
 
 		/* get result of reading request.. */
-		uint8_t result = Master_RTU.readHoldingRegisters(arSlaveRdVarCfg[device].firstElementAdr, arSlaveRdVarCfg[device].numberOfElements);
+		uint8_t result = Master_RTU.readHoldingRegisters(slaveCfg[device].readAddr, slaveCfg[device].readQty);
 
 		/* ..and print it on serial monitor */
 		#ifdef SERIAL_PRINT
-		Serial.print(F("Request made to the node "));
-		Serial.print(modbusNode[device]);
-		Serial.print(F(". Result is "));
-		Serial.println(getModbusErrorInfo(result));
 		Serial.print(F("Millis time: "));
-		Serial.println(millis() / 1000.0F);
+		Serial.print(millis() / 1000.0F);
+		Serial.print(F("sec. | Request made slave Id nr."));
+		Serial.print(slaveCfg[device].slaveId);
+		Serial.print(F(" | Result is "));
+		Serial.print(getModbusErrorInfo(result));
 		Serial.println();
 		#endif
 		
@@ -183,51 +186,51 @@ void modbusRequest(uint8_t device)
 			/* get all the values ​​related to the BME280 sensor */
 			case BME280_TEMP_HUM:
 				/* write info about connection status */
-				stBME280Modbus.connectionStatus = result;
+				BME280Modbus.connectionStatus = result;
 				/* BME280 response is OK */
-				if (result == Master_RTU.ku8MBSuccess)
+				if (result == MB_SUCCESS)
 				{
 					/* compile structured variable.. */
-					stBME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
-					stBME280Modbus.actualPressure		= Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
-					stBME280Modbus.actualHumidity		= Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
-					stBME280Modbus.wetBulbTemperature	= Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
-					stBME280Modbus.dewPoint				= Master_RTU.getResponseBuffer(DEW_POINT);
-					stBME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
-					stBME280Modbus.absHumidity			= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
-					stBME280Modbus.statusBME280			= Master_RTU.getResponseBuffer(BME280_STATUS);
+					BME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
+					BME280Modbus.actualPressure		= Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
+					BME280Modbus.actualHumidity		= Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
+					BME280Modbus.wetBulbTemperature	= Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
+					BME280Modbus.dewPoint			= Master_RTU.getResponseBuffer(DEW_POINT);
+					BME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
+					BME280Modbus.absHumidity		= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
+					BME280Modbus.statusBME280		= Master_RTU.getResponseBuffer(BME280_STATUS);
 					/* ..print data on serial monitor.. */
 					BME280PrintData();
 				}
-			break;
+				break;
 
 			/* get all the values ​​related to the anemometer sensor */
 			case ANEMOMETER:
 				/* write info about connection status */
-				stAnemometer.connectionStatus = result;
+				Anemometer.connectionStatus = result;
 				/* anemometer response is OK */
-				if (result == Master_RTU.ku8MBSuccess)
+				if (result == MB_SUCCESS)
 				{
 					/* compile structured variable.. */
-					stAnemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
+					Anemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
 					/* ..print data on serial monitor.. */
 					anemometerPrintData();
 				}
-			break;
+				break;
 
 			/* get all the values ​​related to the wind vane sensor */
 			case WIND_VANE:
 				/* write info about connection status */
-				stWindVane.connectionStatus = result;
+				WindVane.connectionStatus = result;
 				/* wind vane response is OK */
-				if (result == Master_RTU.ku8MBSuccess)
+				if (result == MB_SUCCESS)
 				{
 					/* compile structured variable.. */
-					stWindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
+					WindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
 					/* ..print data on serial monitor.. */
 					windVanePrintData();
 				}
-			break;
+				break;
 		}
 	}
 }
@@ -250,31 +253,31 @@ void BME280PrintData()
 	/* print data on serial monitor  */
 #ifdef SERIAL_PRINT
 	Serial.print(F("Dry temperature.... "));
-	Serial.print(stBME280Modbus.actualTemperature / 10.0F);
+	Serial.print(BME280Modbus.actualTemperature / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("Pressure........... "));
-	Serial.print(stBME280Modbus.actualPressure / 10.0F);
+	Serial.print(BME280Modbus.actualPressure / 10.0F);
 	Serial.println(F(" hPa"));
 
 	Serial.print(F("Humidity........... "));
-	Serial.print(stBME280Modbus.actualHumidity / 10.0F);
+	Serial.print(BME280Modbus.actualHumidity / 10.0F);
 	Serial.println(F(" %"));
 
 	Serial.print(F("Wet temperature.... "));
-	Serial.print(stBME280Modbus.wetBulbTemperature / 10.0F);
+	Serial.print(BME280Modbus.wetBulbTemperature / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("DewPoint........... "));
-	Serial.print(stBME280Modbus.dewPoint / 10.0F);
+	Serial.print(BME280Modbus.dewPoint / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("HeatIndex.......... "));
-	Serial.print(stBME280Modbus.heatIndex / 10.0F);
+	Serial.print(BME280Modbus.heatIndex / 10.0F);
 	Serial.println(F(" °C"));
 
 	Serial.print(F("AbsoluteHumidity... "));
-	Serial.print(stBME280Modbus.absHumidity / 10.0F);
+	Serial.print(BME280Modbus.absHumidity / 10.0F);
 	Serial.println(F(" %"));
 
 	Serial.println();
@@ -287,7 +290,7 @@ void anemometerPrintData()
 	/* print data on serial monitor  */
 #ifdef SERIAL_PRINT
 	Serial.print(F("Actual wind speed.. "));
-	Serial.print(stAnemometer.actualWindSpeed / 10.0F);
+	Serial.print(Anemometer.actualWindSpeed / 10.0F);
 	Serial.println(F(" m/s"));
 
 	Serial.println();
@@ -299,9 +302,9 @@ void windVanePrintData()
 {
 	/* print data on serial monitor  */
 #ifdef SERIAL_PRINT
-	Serial.print(F("Wind direction..... "));
-	Serial.print(stWindVane.actualWindDirection);
-	Serial.println(F(" enum"));
+	Serial.print(F("Wind direction..... <"));
+	Serial.print(getActualWindDirection(WindVane.actualWindDirection));
+	Serial.println(F(">"));
 
 	Serial.println();
 #endif
@@ -310,13 +313,34 @@ void windVanePrintData()
 /* get a string about modbus error */
 char* getModbusErrorInfo(uint8_t result)
 {
-		 if (result == Master_RTU.ku8MBSuccess)				return "0x00: ku8MBSuccess";
-	else if (result == Master_RTU.ku8MBIllegalFunction)		return "0x01: ku8MBIllegalFunction";
-	else if (result == Master_RTU.ku8MBIllegalDataAddress)	return "0x02: ku8MBIllegalDataAddress";
-	else if (result == Master_RTU.ku8MBIllegalDataValue)	return "0x03: ku8MBIllegalDataValue";
-	else if (result == Master_RTU.ku8MBSlaveDeviceFailure)	return "0x04: ku8MBSlaveDeviceFailure";
-	else if (result == Master_RTU.ku8MBInvalidSlaveID)		return "0xE0: ku8MBInvalidSlaveID";
-	else if (result == Master_RTU.ku8MBInvalidFunction)		return "0xE1: ku8MBInvalidFunction";
-	else if (result == Master_RTU.ku8MBResponseTimedOut)	return "0xE2: ku8MBResponseTimedOut";
-	else if (result == Master_RTU.ku8MBInvalidCRC)			return "0xE3: ku8MBInvalidCRC";
+		 if (result == MB_SUCCESS)					return "0x00: MB_SUCCESS";
+	else if (result == MB_ILLEGAL_FUNCTION)			return "0x01: MB_ILLEGAL_FUNCTION";
+	else if (result == MB_ILLEGAL_DATA_ADDRESS)		return "0x02: MB_ILLEGAL_DATA_ADDRESS";
+	else if (result == MB_ILLEGAL_DATA_VALUE)		return "0x03: MB_ILLEGAL_DATA_VALUE";
+	else if (result == MB_SLAVE_DEVICE_FAILURE)		return "0x04: MB_SLAVE_DEVICE_FAILURE";
+	else if (result == MB_INVALID_SLAVE_ID)			return "0xE0: MB_INVALID_SLAVE_ID";
+	else if (result == MB_INVALID_FUNCTION)			return "0xE1: MB_INVALID_FUNCTION";
+	else if (result == MB_RESPONSE_TIMED_OUT)		return "0xE2: MB_RESPONSE_TIMED_OUT";
+	else if (result == MB_INVALID_CRC)				return "0xE3: MB_INVALID_CRC";
+}
+
+/* get a string about wind direction */
+char* getActualWindDirection(uint8_t windDirection)
+{
+		 if (windDirection == NORD)				return "NORD";
+	else if (windDirection == NORD_NORD_EST)	return "NORD_NORD_EST";
+	else if (windDirection == NORD_EST)			return "NORD_EST";
+	else if (windDirection == EST_NORD_EST)		return "EST_NORD_EST";
+	else if (windDirection == EST)				return "EST";
+	else if (windDirection == EST_SUD_EST)		return "EST_SUD_EST";
+	else if (windDirection == SUD_EST)			return "SUD_EST";
+	else if (windDirection == SUD_SUD_EST)		return "SUD_SUD_EST";
+	else if (windDirection == SUD)				return "SUD";
+	else if (windDirection == SUD_SUD_WEST)		return "SUD_SUD_WEST";
+	else if (windDirection == SUD_WEST)			return "SUD_WEST";
+	else if (windDirection == WEST_SUD_WEST)	return "WEST_SUD_WEST";
+	else if (windDirection == WEST)				return "WEST";
+	else if (windDirection == OVEST_NORD_WEST)	return "OVEST_NORD_WEST";
+	else if (windDirection == NORD_WEST)		return "NORD_WEST";
+	else if (windDirection == NORD_NORD_WEST)	return "NORD_NORD_WEST";
 }

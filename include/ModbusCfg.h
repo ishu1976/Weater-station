@@ -20,13 +20,15 @@
 #include <ModbusIP_ENC28J60.h>
 
 /* structure definitions */
-struct ST_ModbusRdWrCfg
+struct ModbusSlaveConfig
 {	/* structure used to define a modbus read/write function */
-	bool enable					= false;
-	uint8_t firstElementAdr		= 0x00;
-	uint8_t numberOfElements	= 0x00;
+	uint8_t slaveId		= 0;
+	uint8_t readAddr	= 0;
+	uint8_t readQty		= 0;
+	uint8_t writeAddr	= 0;
+	uint8_t writeQty	= 0;
 };
-struct ST_BME280ModbusData
+struct BME280ModbusData
 {	/* structure used to define all parameters read from BME280 */
 	word connectionStatus;
 	word actualTemperature;
@@ -38,12 +40,12 @@ struct ST_BME280ModbusData
 	word absHumidity;
 	word statusBME280;
 };
-struct ST_AnemometerData
+struct AnemometerData
 {	/* structure used to define all parameters read from anemometer */
 	word connectionStatus;
 	word actualWindSpeed;
 };
-struct ST_WindVaneData
+struct WindVaneData
 {	/* structure used to define all parameters read from wind vane */
 	word connectionStatus;
 	word actualWindDirection;
@@ -56,42 +58,78 @@ struct ST_WindVaneData
 	/* class definitions */
 	ModbusMaster Master_RTU;					// Class for modbus RTU menagement
 
-	/* define IDs of the slave nodes as devices (used as array pointer) */
-	#define BME280_TEMP_HUM		0
-	#define ANEMOMETER			1
-	#define WIND_VANE			2
+	/* modbus response enumeration (synonyms in capital letters of ModbusMaster library response) */
+	enum
+	{
+		MB_SUCCESS					= 0x00,
+		MB_ILLEGAL_FUNCTION			= 0x01,
+		MB_ILLEGAL_DATA_ADDRESS		= 0x02,
+		MB_ILLEGAL_DATA_VALUE		= 0x03,
+		MB_SLAVE_DEVICE_FAILURE		= 0x04,
+		MB_INVALID_SLAVE_ID			= 0xE0,
+		MB_INVALID_FUNCTION			= 0xE1,
+		MB_RESPONSE_TIMED_OUT		= 0xE2,
+		MB_INVALID_CRC				= 0xE3
+	};
 
-	/* define slave node address */
-	#define BME280_TEMP_HUM_NODE	1
-	#define ANEMOMETER_NODE			2
-	#define WIND_VANE_NODE			3
+	/* define slave index (used as array pointer) */
+	enum
+	{
+		BME280_TEMP_HUM,
+		ANEMOMETER,
+		WIND_VANE,	
+		TOTAL_NR_OF_SLAVES // leave this last entry!!
+	};
 
 	/* synonyms for logic */
-	#define	TX_MODE					HIGH
-	#define	RX_MODE					LOW
+	enum
+	{
+		TX_MODE = HIGH,
+		RX_MODE = LOW
+	};
 
-	/* init array with modbus node defines */
-	uint8_t modbusNode[] = { BME280_TEMP_HUM_NODE, ANEMOMETER_NODE, WIND_VANE_NODE };
-
-	/* define structured var for read holding register (0x03) function */
-	ST_ModbusRdWrCfg arSlaveRdVarCfg[3];
-
-	/* define structured var for write holding register (0x10) function */
-	ST_ModbusRdWrCfg arSlaveWrVarCfg[3];
+	/* define structured var for slave configuration */
+	ModbusSlaveConfig slaveCfg[3];
 
 	/* modbus configuration for BME280 modbus */
-	#define ACTUAL_TEMPERATURE		0			// register 100, actual dry bulb temperature read by sensor BME280
-	#define ACTUAL_PRESSURE			1			// register 101, actual barometric pressure read by sensor BME280
-	#define ACTUAL_HUMIDITY			2			// register 102, actual humidity read by sensor BME280
-	#define WET_BULB_TEMPERATURE	3			// register 103, wet bulb temperature - calculated
-	#define DEW_POINT				4			// register 104, dew point temperature - calculated
-	#define HEAT_INDEX				5			// register 105, heat index temperature - calculated
-	#define ABS_HUMIDITY			6			// register 106, absolute humidity - calculated
-	#define BME280_STATUS			7			// register 107, status of running program on the board
+	enum
+	{
+		ACTUAL_TEMPERATURE,		// register 100, actual dry bulb temperature read by sensor BME280
+		ACTUAL_PRESSURE,		// register 101, actual barometric pressure read by sensor BME280
+		ACTUAL_HUMIDITY,		// register 102, actual humidity read by sensor BME280
+		WET_BULB_TEMPERATURE,	// register 103, wet bulb temperature - calculated
+		DEW_POINT,				// register 104, dew point temperature - calculated
+		HEAT_INDEX,				// register 105, heat index temperature - calculated
+		ABS_HUMIDITY,			// register 106, absolute humidity - calculated
+		BME280_STATUS			// register 107, status of running program on the board
+	};
+
 	/* modbus configuration for anemometer */
-	#define ACTUAL_WIND_SPEED		0			// register 0, actual wind speed (value 0 to 324 --> 32.4 m/s)
+	#define ACTUAL_WIND_SPEED		0			// register 0, actual wind speed (value 0 to xyz --> xy.z m/s)
+
 	/* modbus configuration for wind vane */
 	#define ACTUAL_WIND_DIRECTION	0			// register 0, actual wind direction (value 0 to 15)
+
+	/* enumerate that define wind direction */
+	enum
+	{
+		NORD,
+		NORD_NORD_EST,
+		NORD_EST,
+		EST_NORD_EST,
+		EST,
+		EST_SUD_EST,
+		SUD_EST,
+		SUD_SUD_EST,
+		SUD,
+		SUD_SUD_WEST,
+		SUD_WEST,
+		WEST_SUD_WEST,
+		WEST,
+		OVEST_NORD_WEST,
+		NORD_WEST,
+		NORD_NORD_WEST
+	};
 #pragma endregion
 
 #pragma region MODBUS SLAVE TCP/IP SECTION
