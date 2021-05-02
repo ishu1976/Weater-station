@@ -19,7 +19,7 @@
 #include <Modbus.h>
 #include <ModbusIP_ENC28J60.h>
 
-/* structure definitions */
+#pragma region STRUCTURE DEFINITIONS
 struct ModbusSlaveConfig
 {	/* structure used to define a modbus read/write function */
 	uint8_t slaveId		= 0;
@@ -50,6 +50,8 @@ struct WindVaneData
 	word connectionStatus;
 	word actualWindDirection;
 };
+#pragma endregion
+
 #pragma region MODBUS MASTER RTU SECTION
 	/* modbus configuration */
 	#define MODBUS_SPEED			9600
@@ -59,7 +61,7 @@ struct WindVaneData
 	ModbusMaster Master_RTU;					// Class for modbus RTU menagement
 
 	/* modbus response enumeration (synonyms in capital letters of ModbusMaster library response) */
-	enum
+	enum modbusResponse
 	{
 		MB_SUCCESS					= 0x00,
 		MB_ILLEGAL_FUNCTION			= 0x01,
@@ -73,7 +75,7 @@ struct WindVaneData
 	};
 
 	/* define slave index (used as array pointer) */
-	enum
+	enum slaveList
 	{
 		BME280_TEMP_HUM,
 		ANEMOMETER,
@@ -82,17 +84,17 @@ struct WindVaneData
 	};
 
 	/* synonyms for logic */
-	enum
+	enum serialControl
 	{
 		TX_MODE = HIGH,
 		RX_MODE = LOW
 	};
 
 	/* define structured var for slave configuration */
-	ModbusSlaveConfig slaveCfg[3];
+	ModbusSlaveConfig slaveCfg[TOTAL_NR_OF_SLAVES];
 
 	/* modbus configuration for BME280 modbus */
-	enum
+	enum BME280
 	{
 		ACTUAL_TEMPERATURE,		// register 100, actual dry bulb temperature read by sensor BME280
 		ACTUAL_PRESSURE,		// register 101, actual barometric pressure read by sensor BME280
@@ -110,26 +112,6 @@ struct WindVaneData
 	/* modbus configuration for wind vane */
 	#define ACTUAL_WIND_DIRECTION	0			// register 0, actual wind direction (value 0 to 15)
 
-	/* enumerate that define wind direction */
-	enum
-	{
-		NORD,
-		NORD_NORD_EST,
-		NORD_EST,
-		EST_NORD_EST,
-		EST,
-		EST_SUD_EST,
-		SUD_EST,
-		SUD_SUD_EST,
-		SUD,
-		SUD_SUD_WEST,
-		SUD_WEST,
-		WEST_SUD_WEST,
-		WEST,
-		OVEST_NORD_WEST,
-		NORD_WEST,
-		NORD_NORD_WEST
-	};
 #pragma endregion
 
 #pragma region MODBUS SLAVE TCP/IP SECTION

@@ -3,6 +3,7 @@
  Created:	20/04/2021
  Author:	Andrea Santinelli
  Copyright: 2021 - Andrea Santinelli
+
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -12,6 +13,7 @@
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
+
  Libraries used in the project:
  - https://github.com/4-20ma/ModbusMaster			by Doc Walker
  - https://github.com/andresarmento/modbus-arduino	by André Sarmento Barbosa
@@ -34,6 +36,10 @@
 	uint8_t device				= BME280_TEMP_HUM;
 	bool serialBusy				= false;
 
+	/* rain gauge global var */
+	uint8_t overturning			= LOW;						// it represents the status TRUE of the reed switch inside rain gauge
+	uint16_t overturningCnt		= 0;						// is represents the number of overturning of the rain gauges
+
 	/* input / output connected var */
 	uint8_t doRunState			= LOW;						// represents the state of GREEN led on sensor board
 	uint8_t diRainGaugeSwitch	= LOW;						// represents the state of rain gouge switch
@@ -42,6 +48,28 @@
 	BME280ModbusData BME280Modbus;							// it contains the data read by the BME280 modbus sensor
 	AnemometerData Anemometer;								// it contains the data read by the anemometer together with other data about wind velocity
 	WindVaneData WindVane;									// it contains the data read from the wind vane together with other data about wind direction
+
+	/* enumerates  */
+	enum windDirection 
+	{
+		NORD,
+		NORD_NORD_EST,
+		NORD_EST,
+		EST_NORD_EST,
+		EST,
+		EST_SUD_EST,
+		SUD_EST,
+		SUD_SUD_EST,
+		SUD,
+		SUD_SUD_WEST,
+		SUD_WEST,
+		WEST_SUD_WEST,
+		WEST,
+		OVEST_NORD_WEST,
+		NORD_WEST,
+		NORD_NORD_WEST,
+		NOT_VALID // leave this last entry!!
+	};
 #pragma endregion
 
 /* the setup function runs once when you press reset or power the board */
@@ -51,9 +79,6 @@ void setup()
 	pinMode(RUN_LED, OUTPUT);
 	pinMode(RAIN_GAUGE_SWITCH, INPUT);
 	pinMode(RE_DE_PIN, OUTPUT);
-
-	/* init input var at input state */
-	diRainGaugeSwitch = digitalRead(RAIN_GAUGE_SWITCH);
 
 	/* modbus read configuration for thermobarometer sensor */
 	slaveCfg[BME280_TEMP_HUM].slaveId	= 0x01;
@@ -79,23 +104,24 @@ void setup()
 	/* define callback functions for modbus master */
 	Master_RTU.preTransmission(setTxMode);
 	Master_RTU.postTransmission(setRxMode);
+	Master_RTU.idle(overturningCounter);
 
 	/* init serial at modbus speed */
 	Serial.begin(MODBUS_SPEED);
-	#ifdef SERIAL_PRINT
+#ifdef SERIAL_PRINT
 	Serial.print(F("Start modbus/serial at "));
 	Serial.print(MODBUS_SPEED);
 	Serial.println(F(" bit/s"));
 	Serial.println();
-	#endif
+#endif
 
 	/* software info */
-	#ifdef SERIAL_PRINT
+#ifdef SERIAL_PRINT
 	Serial.println(F("MAIN WEATER STATION BOARD"));
 	Serial.print(F("Software version: "));
 	Serial.println(softwareVersion);
 	Serial.println();
-	#endif
+#endif
 	
 	/* wait for the modbus slaves to be operational */
 	delay(2500);
@@ -109,11 +135,12 @@ void loop()
 {
 	/* START LOOP: get millis value at loop begin */
 	millisAtLoopBegin = millis();
-
-	/* read digital input */
+	
+	/* counter of the number of overturning */
+	overturningCounter();
 
 	#pragma region SCHEDULER
-	/* execution of scheduled task T1 */
+		/* execution of scheduled task T1 */
 		if (((taskCounter[T1_TASK] == 0) || (abs(millis() - taskCounter[T1_TASK]) >= T1_TASK_TIME)) && !serialBusy)
 		{
 			/* reset counter and call function for BME280_TEMP_HUM */
@@ -167,7 +194,7 @@ void modbusRequest(uint8_t device)
 		uint8_t result = Master_RTU.readHoldingRegisters(slaveCfg[device].readAddr, slaveCfg[device].readQty);
 
 		/* ..and print it on serial monitor */
-		#ifdef SERIAL_PRINT
+#ifdef SERIAL_PRINT
 		Serial.print(F("Millis time: "));
 		Serial.print(millis() / 1000.0F);
 		Serial.print(F("sec. | Request made slave Id nr."));
@@ -175,7 +202,7 @@ void modbusRequest(uint8_t device)
 		Serial.print(F(" | Result is "));
 		Serial.print(getModbusErrorInfo(result));
 		Serial.println();
-		#endif
+#endif
 		
 		/* ..and release serial for next com */
 		serialBusy = false;
@@ -199,8 +226,6 @@ void modbusRequest(uint8_t device)
 					BME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
 					BME280Modbus.absHumidity		= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
 					BME280Modbus.statusBME280		= Master_RTU.getResponseBuffer(BME280_STATUS);
-					/* ..print data on serial monitor.. */
-					BME280PrintData();
 				}
 				break;
 
@@ -213,8 +238,6 @@ void modbusRequest(uint8_t device)
 				{
 					/* compile structured variable.. */
 					Anemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
-					/* ..print data on serial monitor.. */
-					anemometerPrintData();
 				}
 				break;
 
@@ -227,11 +250,18 @@ void modbusRequest(uint8_t device)
 				{
 					/* compile structured variable.. */
 					WindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
-					/* ..print data on serial monitor.. */
-					windVanePrintData();
+				}
+				else
+				{
+					/* declare value as invalid */
+					WindVane.actualWindDirection = NOT_VALID;
 				}
 				break;
 		}
+		/* print data on serial monitor */
+#ifdef SERIAL_PRINT
+		printData(device);
+#endif
 	}
 }
 
@@ -248,66 +278,58 @@ void setRxMode()
 }
 
 /* BME280 Modbus print data function */
-void BME280PrintData()
+void printData(uint8_t device)
 {
-	/* print data on serial monitor  */
-#ifdef SERIAL_PRINT
-	Serial.print(F("Dry temperature.... "));
-	Serial.print(BME280Modbus.actualTemperature / 10.0F);
-	Serial.println(F(" °C"));
+	/* print on serial monitor all the data of the selected device */
+	switch (device)
+	{
+		/* print all the values ​​related to the BME280 sensor */
+		case BME280_TEMP_HUM:
+			Serial.print(F("Dry temperature.... "));
+			Serial.print(BME280Modbus.actualTemperature / 10.0F);
+			Serial.println(F(" °C"));
 
-	Serial.print(F("Pressure........... "));
-	Serial.print(BME280Modbus.actualPressure / 10.0F);
-	Serial.println(F(" hPa"));
+			Serial.print(F("Pressure........... "));
+			Serial.print(BME280Modbus.actualPressure / 10.0F);
+			Serial.println(F(" hPa"));
 
-	Serial.print(F("Humidity........... "));
-	Serial.print(BME280Modbus.actualHumidity / 10.0F);
-	Serial.println(F(" %"));
+			Serial.print(F("Humidity........... "));
+			Serial.print(BME280Modbus.actualHumidity / 10.0F);
+			Serial.println(F(" %"));
 
-	Serial.print(F("Wet temperature.... "));
-	Serial.print(BME280Modbus.wetBulbTemperature / 10.0F);
-	Serial.println(F(" °C"));
+			Serial.print(F("Wet temperature.... "));
+			Serial.print(BME280Modbus.wetBulbTemperature / 10.0F);
+			Serial.println(F(" °C"));
 
-	Serial.print(F("DewPoint........... "));
-	Serial.print(BME280Modbus.dewPoint / 10.0F);
-	Serial.println(F(" °C"));
+			Serial.print(F("DewPoint........... "));
+			Serial.print(BME280Modbus.dewPoint / 10.0F);
+			Serial.println(F(" °C"));
 
-	Serial.print(F("HeatIndex.......... "));
-	Serial.print(BME280Modbus.heatIndex / 10.0F);
-	Serial.println(F(" °C"));
+			Serial.print(F("HeatIndex.......... "));
+			Serial.print(BME280Modbus.heatIndex / 10.0F);
+			Serial.println(F(" °C"));
 
-	Serial.print(F("AbsoluteHumidity... "));
-	Serial.print(BME280Modbus.absHumidity / 10.0F);
-	Serial.println(F(" %"));
+			Serial.print(F("AbsoluteHumidity... "));
+			Serial.print(BME280Modbus.absHumidity / 10.0F);
+			Serial.println(F(" %"));
+			break;
 
+		/* print all the values ​​related to the anemometer sensor */
+		case ANEMOMETER:
+			Serial.print(F("Actual wind speed.. "));
+			Serial.print(Anemometer.actualWindSpeed / 10.0F);
+			Serial.println(F(" m/s"));
+			break;
+
+		/* print all the values ​​related to the wind vane sensor */
+		case WIND_VANE:
+			Serial.print(F("Wind direction..... <"));
+			Serial.print(getActualWindDirection(WindVane.actualWindDirection));
+			Serial.println(F(">"));
+			break;
+	}
+	/* print empty line */
 	Serial.println();
-#endif
-}
-
-/* anemometer print data function */
-void anemometerPrintData()
-{
-	/* print data on serial monitor  */
-#ifdef SERIAL_PRINT
-	Serial.print(F("Actual wind speed.. "));
-	Serial.print(Anemometer.actualWindSpeed / 10.0F);
-	Serial.println(F(" m/s"));
-
-	Serial.println();
-#endif
-}
-
-/* anemometer print data function */
-void windVanePrintData()
-{
-	/* print data on serial monitor  */
-#ifdef SERIAL_PRINT
-	Serial.print(F("Wind direction..... <"));
-	Serial.print(getActualWindDirection(WindVane.actualWindDirection));
-	Serial.println(F(">"));
-
-	Serial.println();
-#endif
 }
 
 /* get a string about modbus error */
@@ -343,4 +365,28 @@ char* getActualWindDirection(uint8_t windDirection)
 	else if (windDirection == OVEST_NORD_WEST)	return "OVEST_NORD_WEST";
 	else if (windDirection == NORD_WEST)		return "NORD_WEST";
 	else if (windDirection == NORD_NORD_WEST)	return "NORD_NORD_WEST";
+	else if (windDirection == NOT_VALID)		return "NOT_VALID";
+}
+
+/* this function counts the number of buckets overturnig */
+void overturningCounter()
+{
+	/* read digital input */
+	diRainGaugeSwitch = digitalRead(RAIN_GAUGE_SWITCH);
+
+	/* if overturning is HIGH, the overturning is running */
+	if ((overturning == HIGH) && (diRainGaugeSwitch == LOW))
+	{
+		overturning = LOW;
+		overturningCnt++;
+#ifdef SERIAL_PRINT
+		Serial.print(F("Rain gauge buckets overturning: "));
+		Serial.println(overturningCnt);
+		Serial.println();
+#endif
+	}
+	else if (diRainGaugeSwitch == HIGH)
+	{
+		overturning = HIGH;
+	}
 }
