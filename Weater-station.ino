@@ -24,7 +24,7 @@
 #include <EtherCard.h>
 #include <Modbus.h>
 #include <ModbusIP_ENC28J60.h>
-#include "include/IOMap.h"
+#include "include/AppConfig.h"
 #include "include/ModbusCfg.h"
 
 #pragma region DECLARATIONS
@@ -43,33 +43,6 @@
 	/* input / output connected var */
 	uint8_t doRunState			= LOW;						// represents the state of GREEN led on sensor board
 	uint8_t diRainGaugeSwitch	= LOW;						// represents the state of rain gouge switch
-
-	/* structured var */
-	BME280ModbusData BME280Modbus;							// it contains the data read by the BME280 modbus sensor
-	AnemometerData Anemometer;								// it contains the data read by the anemometer together with other data about wind velocity
-	WindVaneData WindVane;									// it contains the data read from the wind vane together with other data about wind direction
-
-	/* enumerates  */
-	enum windDirection 
-	{
-		NORD,
-		NORD_NORD_EST,
-		NORD_EST,
-		EST_NORD_EST,
-		EST,
-		EST_SUD_EST,
-		SUD_EST,
-		SUD_SUD_EST,
-		SUD,
-		SUD_SUD_WEST,
-		SUD_WEST,
-		WEST_SUD_WEST,
-		WEST,
-		OVEST_NORD_WEST,
-		NORD_WEST,
-		NORD_NORD_WEST,
-		NOT_VALID // leave this last entry!!
-	};
 #pragma endregion
 
 /* the setup function runs once when you press reset or power the board */
@@ -135,44 +108,57 @@ void loop()
 {
 	/* START LOOP: get millis value at loop begin */
 	millisAtLoopBegin = millis();
-	
+
 	/* counter of the number of overturning */
 	overturningCounter();
 
-	#pragma region SCHEDULER
-		/* execution of scheduled task T1 */
-		if (((taskCounter[T1_TASK] == 0) || (abs(millis() - taskCounter[T1_TASK]) >= T1_TASK_TIME)) && !serialBusy)
-		{
-			/* reset counter and call function for BME280_TEMP_HUM */
-			taskCounter[T1_TASK] = millis();
-			modbusRequest(BME280_TEMP_HUM);
-		}
-		/* execution of scheduled task T2 */
-		else if (((taskCounter[T2_TASK] == 0) || (abs(millis() - taskCounter[T2_TASK]) >= T2_TASK_TIME)) && !serialBusy)
-		{
-			/* reset counter and call function for ANEMOMETER */
-			taskCounter[T2_TASK] = millis();
-			modbusRequest(ANEMOMETER);
-		}
-		/* execution of scheduled task T3 */
-		else if (((taskCounter[T3_TASK] == 0) || (abs(millis() - taskCounter[T3_TASK]) >= T3_TASK_TIME)) && !serialBusy)
-		{
-			/* reset counter and call function for WIND_VANE */
-			taskCounter[T3_TASK] = millis();
-			modbusRequest(WIND_VANE);
-		}
-		/* flush serial to avoid unpredictable behavior */
-		Serial.flush();
+#pragma region SCHEDULER
+	/* execution of scheduled task T1 */
+	if (isTaskTimeExpired(!serialBusy, T1_TASK, 45))
+	{
+		modbusRequest(BME280_TEMP_HUM);
+	}
+	/* execution of scheduled task T2 */
+	else if (isTaskTimeExpired(!serialBusy, T2_TASK, 15))
+	{
+		modbusRequest(ANEMOMETER);
+	}
+	/* execution of scheduled task T3 */
+	else if (isTaskTimeExpired(!serialBusy, T3_TASK, 5))
+	{
+		modbusRequest(WIND_VANE);
+	}
 	#pragma endregion
+		
+	/* flush serial to avoid unpredictable behavior */
+	Serial.flush();
 
 	/* write digital output */
 	digitalWrite(RUN_LED, doRunState);
 
 	/* END LOOP: if current cycle is shorter than task time, wait! */
-	if (abs(millis() - millisAtLoopBegin) < LOOP_TIME)
+	if (abs(millis() - millisAtLoopBegin) < LOOP_DURATION_MS)
 	{
-		while (abs(millis() - millisAtLoopBegin) <= LOOP_TIME);
+		while (abs(millis() - millisAtLoopBegin) <= LOOP_DURATION_MS);
 	}
+}
+
+/* function returns true when time is elapsed */
+bool isTaskTimeExpired(bool enable, taskIndex index, uint8_t time)
+{
+	/* internal var */
+	bool _taskTimeExpired = false;
+
+	/* time is expired if 1).is the first execution after boot, 2).programmed time task is elapsed */
+	if (enable && ((taskCounter[index] == 0) || (abs(millis() - taskCounter[index]) >= TASK_DURATION_SEC(time))))
+	{
+		/* time expired! Get millis value for next call */
+		_taskTimeExpired = true;
+		taskCounter[index] = millis();
+	}
+
+	/* write function output */
+	return _taskTimeExpired;
 }
 
 /* function modbusRequest is executed every time the scheduling time has elapsed */

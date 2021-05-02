@@ -24,5 +24,6 @@ C:\Users\andre\AppData\Local\Temp\VMBuilds\Weater-station\nano_atmega328\Debug\W
  C:\Users\andre\Documents\Arduino\libraries\EtherCard\src/stash.h \
  C:\Users\andre\Documents\Arduino\libraries\Modbus/Modbus.h \
  C:\Users\andre\Documents\Arduino\libraries\ModbusIP_ENC28J60/ModbusIP_ENC28J60.h \
- C:\Users\andre\AppData\Local\Temp\VMBuilds\Weater-station\nano_atmega328\Debug\include/IOMap.h \
+ C:\Users\andre\AppData\Local\Temp\VMBuilds\Weater-station\nano_atmega328\Debug\include/AppConfig.h \
+ C:\Users\andre\AppData\Local\Temp\VMBuilds\Weater-station\nano_atmega328\Debug\include/ModbusCfg.h \
  C:\Users\andre\AppData\Local\Temp\VMBuilds\Weater-station\nano_atmega328\Debug\include/ModbusCfg.h

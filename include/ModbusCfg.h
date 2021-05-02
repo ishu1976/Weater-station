@@ -57,9 +57,7 @@ struct WindVaneData
 	#define MODBUS_SPEED			9600
 	#define RE_DE_PIN				3			// Arduino pin connected to MAX485 (pin RE/DE)
 
-	/* class definitions */
-	ModbusMaster Master_RTU;					// Class for modbus RTU menagement
-
+#pragma region ENUMERATED
 	/* modbus response enumeration (synonyms in capital letters of ModbusMaster library response) */
 	enum modbusResponse
 	{
@@ -73,7 +71,6 @@ struct WindVaneData
 		MB_RESPONSE_TIMED_OUT		= 0xE2,
 		MB_INVALID_CRC				= 0xE3
 	};
-
 	/* define slave index (used as array pointer) */
 	enum slaveList
 	{
@@ -82,36 +79,41 @@ struct WindVaneData
 		WIND_VANE,	
 		TOTAL_NR_OF_SLAVES // leave this last entry!!
 	};
-
 	/* synonyms for logic */
 	enum serialControl
 	{
 		TX_MODE = HIGH,
 		RX_MODE = LOW
 	};
+	/* modbus configuration read registers for BME280 modbus */
+	enum BME280_HR_READ
+	{
+		ACTUAL_TEMPERATURE,		// register 100: actual dry bulb temperature read by sensor BME280
+		ACTUAL_PRESSURE,		// register 101: actual barometric pressure read by sensor BME280
+		ACTUAL_HUMIDITY,		// register 102: actual humidity read by sensor BME280
+		WET_BULB_TEMPERATURE,	// register 103: wet bulb temperature - calculated
+		DEW_POINT,				// register 104: dew point temperature - calculated
+		HEAT_INDEX,				// register 105: heat index temperature - calculated
+		ABS_HUMIDITY,			// register 106: absolute humidity - calculated
+		BME280_STATUS			// register 107: status of running program on the board
+	};
+	/* modbus configuration read registers for anemometer */
+	enum ANEMOMETER_HR_READ
+	{
+		ACTUAL_WIND_SPEED		// register 0: actual wind speed (value 0 to xyz --> xy.z m/s)
+	};
+	/* modbus configuration read registers for wind vane */
+	enum WIND_VANE_HR_READ
+	{
+		ACTUAL_WIND_DIRECTION	// register 0: actual wind direction (value 0 to 15)
+	};
+#pragma endregion
 
 	/* define structured var for slave configuration */
 	ModbusSlaveConfig slaveCfg[TOTAL_NR_OF_SLAVES];
 
-	/* modbus configuration for BME280 modbus */
-	enum BME280
-	{
-		ACTUAL_TEMPERATURE,		// register 100, actual dry bulb temperature read by sensor BME280
-		ACTUAL_PRESSURE,		// register 101, actual barometric pressure read by sensor BME280
-		ACTUAL_HUMIDITY,		// register 102, actual humidity read by sensor BME280
-		WET_BULB_TEMPERATURE,	// register 103, wet bulb temperature - calculated
-		DEW_POINT,				// register 104, dew point temperature - calculated
-		HEAT_INDEX,				// register 105, heat index temperature - calculated
-		ABS_HUMIDITY,			// register 106, absolute humidity - calculated
-		BME280_STATUS			// register 107, status of running program on the board
-	};
-
-	/* modbus configuration for anemometer */
-	#define ACTUAL_WIND_SPEED		0			// register 0, actual wind speed (value 0 to xyz --> xy.z m/s)
-
-	/* modbus configuration for wind vane */
-	#define ACTUAL_WIND_DIRECTION	0			// register 0, actual wind direction (value 0 to 15)
-
+	/* class definitions */
+	ModbusMaster Master_RTU;					// Class for modbus RTU menagement
 #pragma endregion
 
 #pragma region MODBUS SLAVE TCP/IP SECTION
