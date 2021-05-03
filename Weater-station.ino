@@ -19,7 +19,7 @@
  - https://github.com/andresarmento/modbus-arduino	by André Sarmento Barbosa
 */
 
-/* dependencies */
+// dependencies
 #include <ModbusMaster.h>
 #include <EtherCard.h>
 #include <Modbus.h>
@@ -28,58 +28,64 @@
 #include "include/ModbusCfg.h"
 
 #pragma region DECLARATIONS
-	/* local defines */
-	#define SERIAL_PRINT									// comment this define to deactivate print on serial monitor
+	// local defines
+#define SERIAL_PRINT							// comment this define to deactivate print on serial monitor
 
-	/* global var declaration*/
-	char softwareVersion[]		= "2104.07";				// software version
-	uint8_t device				= BME280_TEMP_HUM;
-	bool serialBusy				= false;
+// global var declaration*/
+char softwareVersion[] = "2104.07";				// software version
+uint8_t device = BME280_TEMP_HUM;
+bool serialBusy = false;
 
-	/* rain gauge global var */
-	uint8_t overturning			= LOW;						// it represents the status TRUE of the reed switch inside rain gauge
-	uint16_t overturningCnt		= 0;						// is represents the number of overturning of the rain gauges
+// rain gauge global var
+uint8_t overturning				= LOW;			// it represents the status TRUE of the reed switch inside rain gauge
+uint16_t overturningCnt			= 0;			// is represents the number of overturning of the rain gauges
+ulong millisLastOverturn[2]		= { 0, 0 };
+static const uint8_t COUNTER	= 0;
+static const uint8_t FILTER		= 1;
+float rainRate[2]				= { 0, 0 };
+static const uint8_t mmSec		= 0;
+static const uint8_t mmHrs		= 1;
 
-	/* input / output connected var */
-	uint8_t doRunState			= LOW;						// represents the state of GREEN led on sensor board
-	uint8_t diRainGaugeSwitch	= LOW;						// represents the state of rain gouge switch
+// input / output connected var
+uint8_t doRunState			= LOW;				// represents the state of GREEN led on sensor board
+uint8_t diRainGaugeSwitch	= LOW;				// represents the state of rain gouge switch
 #pragma endregion
 
-/* the setup function runs once when you press reset or power the board */
+// the setup function runs once when you press reset or power the board
 void setup()
 {
-	/* define i/o mode */
+	// define i/o mode
 	pinMode(RUN_LED, OUTPUT);
 	pinMode(RAIN_GAUGE_SWITCH, INPUT);
 	pinMode(RE_DE_PIN, OUTPUT);
 
-	/* modbus read configuration for thermobarometer sensor */
+	// modbus read configuration for thermobarometer sensor
 	slaveCfg[BME280_TEMP_HUM].slaveId	= 0x01;
 	slaveCfg[BME280_TEMP_HUM].readAddr	= 0x64;
 	slaveCfg[BME280_TEMP_HUM].readQty	= 8;
 	slaveCfg[BME280_TEMP_HUM].writeAddr = 0xCb;
 	slaveCfg[BME280_TEMP_HUM].writeQty	= 6;
 
-	/* modbus read configuration for anemometer sensor */
+	// modbus read configuration for anemometer sensor
 	slaveCfg[ANEMOMETER].slaveId	= 0x02;
 	slaveCfg[ANEMOMETER].readAddr	= 0x00;
 	slaveCfg[ANEMOMETER].readQty	= 1;
 	slaveCfg[ANEMOMETER].writeAddr	= 0x00;
 	slaveCfg[ANEMOMETER].writeQty	= 0;
 
-	/* modbus read configuration for wind vane sensor */
+	// modbus read configuration for wind vane sensor
 	slaveCfg[WIND_VANE].slaveId		= 0x03;
 	slaveCfg[WIND_VANE].readAddr	= 0x00;
 	slaveCfg[WIND_VANE].readQty		= 1;
 	slaveCfg[WIND_VANE].writeAddr	= 0x00;
 	slaveCfg[WIND_VANE].writeQty	= 0;
 
-	/* define callback functions for modbus master */
+	// define callback functions for modbus master
 	Master_RTU.preTransmission(setTxMode);
 	Master_RTU.postTransmission(setRxMode);
-	Master_RTU.idle(overturningCounter);
+	Master_RTU.idle(rainGaugeManager);
 
-	/* init serial at modbus speed */
+	// init serial at modbus speed
 	Serial.begin(MODBUS_SPEED);
 #ifdef SERIAL_PRINT
 	Serial.print(F("Start modbus/serial at "));
@@ -88,98 +94,108 @@ void setup()
 	Serial.println();
 #endif
 
-	/* software info */
+	// software info
 #ifdef SERIAL_PRINT
 	Serial.println(F("MAIN WEATER STATION BOARD"));
 	Serial.print(F("Software version: "));
 	Serial.println(softwareVersion);
 	Serial.println();
 #endif
-	
-	/* wait for the modbus slaves to be operational */
+
+	// wait for the modbus slaves to be operational
 	delay(2500);
 
-	/* board setup is completed */
+	// board setup is completed
 	doRunState = HIGH;
 }
 
-/* the loop function runs over and over again until power down or reset */
+// the loop function runs over and over again until power down or reset
 void loop()
 {
-	/* START LOOP: get millis value at loop begin */
+	// START LOOP: get millis value at loop begin
 	millisAtLoopBegin = millis();
 
-	/* counter of the number of overturning */
-	overturningCounter();
+	// manager of rain gauge sensor
+	rainGaugeManager();
 
 #pragma region SCHEDULER
-	/* execution of scheduled task T1 */
-	if (isTaskTimeExpired(!serialBusy, T1_TASK, 45))
+	// execution of scheduled task T1
+	if (isTaskTimeExpired(!serialBusy, T1_TASK))
 	{
-		modbusRequest(BME280_TEMP_HUM);
+		setModbusRequest(BME280_TEMP_HUM);
 	}
-	/* execution of scheduled task T2 */
-	else if (isTaskTimeExpired(!serialBusy, T2_TASK, 15))
+	// execution of scheduled task T2
+	else if (isTaskTimeExpired(!serialBusy, T2_TASK))
 	{
-		modbusRequest(ANEMOMETER);
+		setModbusRequest(ANEMOMETER);
 	}
-	/* execution of scheduled task T3 */
-	else if (isTaskTimeExpired(!serialBusy, T3_TASK, 5))
+	// execution of scheduled task T3
+	else if (isTaskTimeExpired(!serialBusy, T3_TASK))
 	{
-		modbusRequest(WIND_VANE);
+		setModbusRequest(WIND_VANE);
 	}
-	#pragma endregion
-		
-	/* flush serial to avoid unpredictable behavior */
-	Serial.flush();
+#pragma endregion
 
-	/* write digital output */
+	// write digital output
 	digitalWrite(RUN_LED, doRunState);
 
-	/* END LOOP: if current cycle is shorter than task time, wait! */
+	// END LOOP: if current cycle is shorter than task time, wait!
 	if (abs(millis() - millisAtLoopBegin) < LOOP_DURATION_MS)
 	{
 		while (abs(millis() - millisAtLoopBegin) <= LOOP_DURATION_MS);
 	}
 }
 
-/* function returns true when time is elapsed */
-bool isTaskTimeExpired(bool enable, taskIndex index, uint8_t time)
+#pragma region FUNCTION USED ON MAIN LOOP
+// function returns true when time is elapsed
+bool isTaskTimeExpired(bool enable, taskIndex index)
 {
-	/* internal var */
+	// internal var
 	bool _taskTimeExpired = false;
 
-	/* time is expired if 1).is the first execution after boot, 2).programmed time task is elapsed */
-	if (enable && ((taskCounter[index] == 0) || (abs(millis() - taskCounter[index]) >= TASK_DURATION_SEC(time))))
+	// time is expired if 1).is the first execution after boot, 2).programmed time task is elapsed
+	if (enable && ((taskCounter[index] == 0) || (abs(millis() - taskCounter[index]) >= taskPeriod[index])))
 	{
-		/* time expired! Get millis value for next call */
+		// print task info on serial monitor
+#ifdef SERIAL_PRINT
+		Serial.print(F("Starting task T"));
+		Serial.print(index + 1);
+		Serial.print(F(" at millis time: "));
+		Serial.print(millis() / 1000.0F);
+		Serial.print(F("sec."));
+		Serial.println();
+#endif
+		// time expired! Get millis value for next call
 		_taskTimeExpired = true;
 		taskCounter[index] = millis();
 	}
 
-	/* write function output */
+	// write function output
 	return _taskTimeExpired;
 }
 
-/* function modbusRequest is executed every time the scheduling time has elapsed */
-void modbusRequest(uint8_t device)
+// function modbusRequest is executed every time the scheduling time has elapsed
+void setModbusRequest(uint8_t device)
 {
-	/* if reading function is enabled (qty is greater than 0), call read function for holding registers */
+	// flush serial to avoid unpredictable behavior
+	Serial.flush();
+
+	// if reading function is enabled (qty is greater than 0), call read function for holding registers
 	if (slaveCfg[device].readQty > 0)
 	{
-		/* start current node */
+		// start current node
 		Master_RTU.begin(slaveCfg[device].slaveId, Serial);
 
-		/* clear buffer to avoid errors */
+		// clear buffer to avoid errors
 		Master_RTU.clearResponseBuffer();
-		
-		/* declare serial as busy */
+
+		// declare serial as busy
 		serialBusy = true;
 
-		/* get result of reading request.. */
+		// get result of reading request..
 		uint8_t result = Master_RTU.readHoldingRegisters(slaveCfg[device].readAddr, slaveCfg[device].readQty);
 
-		/* ..and print it on serial monitor */
+		// ..and print it on serial monitor
 #ifdef SERIAL_PRINT
 		Serial.print(F("Millis time: "));
 		Serial.print(millis() / 1000.0F);
@@ -189,136 +205,136 @@ void modbusRequest(uint8_t device)
 		Serial.print(getModbusErrorInfo(result));
 		Serial.println();
 #endif
-		
-		/* ..and release serial for next com */
+
+		// ..and release serial for next com
 		serialBusy = false;
 
-		/* manages the modbus function for the device type required */
+		// manages the modbus function for the device type required
 		switch (device)
 		{
-			/* get all the values ​​related to the BME280 sensor */
-			case BME280_TEMP_HUM:
-				/* write info about connection status */
-				BME280Modbus.connectionStatus = result;
-				/* BME280 response is OK */
-				if (result == MB_SUCCESS)
-				{
-					/* compile structured variable.. */
-					BME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
-					BME280Modbus.actualPressure		= Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
-					BME280Modbus.actualHumidity		= Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
-					BME280Modbus.wetBulbTemperature	= Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
-					BME280Modbus.dewPoint			= Master_RTU.getResponseBuffer(DEW_POINT);
-					BME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
-					BME280Modbus.absHumidity		= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
-					BME280Modbus.statusBME280		= Master_RTU.getResponseBuffer(BME280_STATUS);
-				}
-				break;
+			// get all the values ​​related to the BME280 sensor
+		case BME280_TEMP_HUM:
+			// write info about connection status
+			BME280Modbus.connectionStatus = result;
+			// BME280 response is OK
+			if (result == MB_SUCCESS)
+			{
+				// compile structured variable..
+				BME280Modbus.actualTemperature = Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
+				BME280Modbus.actualPressure = Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
+				BME280Modbus.actualHumidity = Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
+				BME280Modbus.wetBulbTemperature = Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
+				BME280Modbus.dewPoint = Master_RTU.getResponseBuffer(DEW_POINT);
+				BME280Modbus.heatIndex = Master_RTU.getResponseBuffer(HEAT_INDEX);
+				BME280Modbus.absHumidity = Master_RTU.getResponseBuffer(ABS_HUMIDITY);
+				BME280Modbus.statusBME280 = Master_RTU.getResponseBuffer(BME280_STATUS);
+			}
+			break;
 
-			/* get all the values ​​related to the anemometer sensor */
-			case ANEMOMETER:
-				/* write info about connection status */
-				Anemometer.connectionStatus = result;
-				/* anemometer response is OK */
-				if (result == MB_SUCCESS)
-				{
-					/* compile structured variable.. */
-					Anemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
-				}
-				break;
+			// get all the values ​​related to the anemometer sensor
+		case ANEMOMETER:
+			// write info about connection status
+			Anemometer.connectionStatus = result;
+			// anemometer response is OK
+			if (result == MB_SUCCESS)
+			{
+				// compile structured variable..
+				Anemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
+			}
+			break;
 
-			/* get all the values ​​related to the wind vane sensor */
-			case WIND_VANE:
-				/* write info about connection status */
-				WindVane.connectionStatus = result;
-				/* wind vane response is OK */
-				if (result == MB_SUCCESS)
-				{
-					/* compile structured variable.. */
-					WindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
-				}
-				else
-				{
-					/* declare value as invalid */
-					WindVane.actualWindDirection = NOT_VALID;
-				}
-				break;
+			// get all the values ​​related to the wind vane sensor
+		case WIND_VANE:
+			// write info about connection status
+			WindVane.connectionStatus = result;
+			// wind vane response is OK
+			if (result == MB_SUCCESS)
+			{
+				// compile structured variable..
+				WindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
+			}
+			else
+			{
+				// declare value as invalid
+				WindVane.actualWindDirection = NOT_VALID;
+			}
+			break;
 		}
-		/* print data on serial monitor */
+		// print data on serial monitor
 #ifdef SERIAL_PRINT
 		printData(device);
 #endif
 	}
 }
 
-/* callback function used to set MAX485 on TX mode */
+// callback function used to set MAX485 on TX mode
 void setTxMode()
 {
 	digitalWrite(RE_DE_PIN, TX_MODE);
 }
 
-/* callback function used to set MAX485 on RX mode */
+// callback function used to set MAX485 on RX mode
 void setRxMode()
 {
 	digitalWrite(RE_DE_PIN, RX_MODE);
 }
 
-/* BME280 Modbus print data function */
+// BME280 Modbus print data function
 void printData(uint8_t device)
 {
-	/* print on serial monitor all the data of the selected device */
+	// print on serial monitor all the data of the selected device
 	switch (device)
 	{
-		/* print all the values ​​related to the BME280 sensor */
-		case BME280_TEMP_HUM:
-			Serial.print(F("Dry temperature.... "));
-			Serial.print(BME280Modbus.actualTemperature / 10.0F);
-			Serial.println(F(" °C"));
+		// print all the values ​​related to the BME280 sensor
+	case BME280_TEMP_HUM:
+		Serial.print(F("Dry temperature.... "));
+		Serial.print(BME280Modbus.actualTemperature / 10.0F);
+		Serial.println(F(" °C"));
 
-			Serial.print(F("Pressure........... "));
-			Serial.print(BME280Modbus.actualPressure / 10.0F);
-			Serial.println(F(" hPa"));
+		Serial.print(F("Pressure........... "));
+		Serial.print(BME280Modbus.actualPressure / 10.0F);
+		Serial.println(F(" hPa"));
 
-			Serial.print(F("Humidity........... "));
-			Serial.print(BME280Modbus.actualHumidity / 10.0F);
-			Serial.println(F(" %"));
+		Serial.print(F("Humidity........... "));
+		Serial.print(BME280Modbus.actualHumidity / 10.0F);
+		Serial.println(F(" %"));
 
-			Serial.print(F("Wet temperature.... "));
-			Serial.print(BME280Modbus.wetBulbTemperature / 10.0F);
-			Serial.println(F(" °C"));
+		Serial.print(F("Wet temperature.... "));
+		Serial.print(BME280Modbus.wetBulbTemperature / 10.0F);
+		Serial.println(F(" °C"));
 
-			Serial.print(F("DewPoint........... "));
-			Serial.print(BME280Modbus.dewPoint / 10.0F);
-			Serial.println(F(" °C"));
+		Serial.print(F("DewPoint........... "));
+		Serial.print(BME280Modbus.dewPoint / 10.0F);
+		Serial.println(F(" °C"));
 
-			Serial.print(F("HeatIndex.......... "));
-			Serial.print(BME280Modbus.heatIndex / 10.0F);
-			Serial.println(F(" °C"));
+		Serial.print(F("HeatIndex.......... "));
+		Serial.print(BME280Modbus.heatIndex / 10.0F);
+		Serial.println(F(" °C"));
 
-			Serial.print(F("AbsoluteHumidity... "));
-			Serial.print(BME280Modbus.absHumidity / 10.0F);
-			Serial.println(F(" %"));
-			break;
+		Serial.print(F("AbsoluteHumidity... "));
+		Serial.print(BME280Modbus.absHumidity / 10.0F);
+		Serial.println(F(" %"));
+		break;
 
-		/* print all the values ​​related to the anemometer sensor */
-		case ANEMOMETER:
-			Serial.print(F("Actual wind speed.. "));
-			Serial.print(Anemometer.actualWindSpeed / 10.0F);
-			Serial.println(F(" m/s"));
-			break;
+		// print all the values ​​related to the anemometer sensor
+	case ANEMOMETER:
+		Serial.print(F("Actual wind speed.. "));
+		Serial.print(Anemometer.actualWindSpeed / 10.0F);
+		Serial.println(F(" m/s"));
+		break;
 
-		/* print all the values ​​related to the wind vane sensor */
-		case WIND_VANE:
-			Serial.print(F("Wind direction..... <"));
-			Serial.print(getActualWindDirection(WindVane.actualWindDirection));
-			Serial.println(F(">"));
-			break;
+		// print all the values ​​related to the wind vane sensor
+	case WIND_VANE:
+		Serial.print(F("Wind direction..... <"));
+		Serial.print(getActualWindDirection(WindVane.actualWindDirection));
+		Serial.println(F(">"));
+		break;
 	}
-	/* print empty line */
+	// print empty line
 	Serial.println();
 }
 
-/* get a string about modbus error */
+// get a string about modbus error
 char* getModbusErrorInfo(uint8_t result)
 {
 		 if (result == MB_SUCCESS)					return "0x00: MB_SUCCESS";
@@ -332,7 +348,7 @@ char* getModbusErrorInfo(uint8_t result)
 	else if (result == MB_INVALID_CRC)				return "0xE3: MB_INVALID_CRC";
 }
 
-/* get a string about wind direction */
+// get a string about wind direction
 char* getActualWindDirection(uint8_t windDirection)
 {
 		 if (windDirection == NORD)				return "NORD";
@@ -354,25 +370,83 @@ char* getActualWindDirection(uint8_t windDirection)
 	else if (windDirection == NOT_VALID)		return "NOT_VALID";
 }
 
-/* this function counts the number of buckets overturnig */
-void overturningCounter()
+// this function manages the rain gauge data
+void rainGaugeManager()
 {
+	// internal var
+	float _intervalTimeSec = 0;
+	bool _incCounter = false;
+
 	/* read digital input */
 	diRainGaugeSwitch = digitalRead(RAIN_GAUGE_SWITCH);
 
-	/* if overturning is HIGH, the overturning is running */
+	// reset for end-of-event
+	if (abs(millis() - millisLastOverturn[COUNTER]) >= END_OF_EVENT_TIME)
+	{
+		// reset time for calculation re-start
+		millisLastOverturn[COUNTER] = 0;
+	}
+
+	// if the overturn switch is HIGH, wait for it to switch to logic level LOW (complete overturning)
 	if ((overturning == HIGH) && (diRainGaugeSwitch == LOW))
 	{
+		// overturning is completed
 		overturning = LOW;
-		overturningCnt++;
+
+		// the calculation starts from the second overturning..
+		if (millisLastOverturn[COUNTER] > 0)
+		{
+			// too frequent impulses are not counted
+			if (abs(millis() - millisLastOverturn[FILTER]) >= FILTERING_TIME)
+			{
+				// update millis value for filter
+				millisLastOverturn[FILTER] = millis();
+				// calculate interval time from last valid overturning
+				_intervalTimeSec = abs(millis() - millisLastOverturn[COUNTER]) / 1000.0F;
+				// update millis value for counter
+				millisLastOverturn[COUNTER] = millis();
+				// calculate rain rate in mm/sec and mm/h
+				rainRate[mmSec] = RAIN_BUCKETS_CONSTANT / _intervalTimeSec;
+				rainRate[mmHrs] = rainRate[mmSec] * 3600;
+				_incCounter = true;
+			}
+			else
+			{
+				// update millis value for filter
+				millisLastOverturn[FILTER] = millis();
+			}
+		}
+		else
+		{
+			// update millis value for next overturning
+			millisLastOverturn[FILTER]  = millis();
+			millisLastOverturn[COUNTER] = millis();
+			_incCounter = true;
+		}
+		// valid pulse, increment the counter
+		if (_incCounter)
+		{
+			overturningCnt++;
+			/* print data on serial monitor */
 #ifdef SERIAL_PRINT
-		Serial.print(F("Rain gauge buckets overturning: "));
-		Serial.println(overturningCnt);
-		Serial.println();
+			Serial.print(F("Rain gauge buckets overturning: "));
+			Serial.println(overturningCnt);
+			Serial.println(F("Rain gauge rain rate:"));
+			Serial.print(F("> "));
+			Serial.print(rainRate[mmSec]);
+			Serial.println(F(" mm/s"));
+			Serial.print(F("> "));
+			Serial.print(rainRate[mmHrs]);
+			Serial.println(F(" mm/h"));
+			Serial.println();
 #endif
+		}
 	}
+	// buckets are in front of the reed switch
 	else if (diRainGaugeSwitch == HIGH)
 	{
+		// overturning is running..
 		overturning = HIGH;
 	}
 }
+#pragma endregion
