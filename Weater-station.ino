@@ -29,26 +29,24 @@
 
 #pragma region DECLARATIONS
 	// local defines
-#define SERIAL_PRINT							// comment this define to deactivate print on serial monitor
+	#define SERIAL_PRINT							///< comment this define to deactivate print on serial monitor
 
-// global var declaration*/
-char softwareVersion[] = "2104.07";				// software version
-uint8_t device = BME280_TEMP_HUM;
-bool serialBusy = false;
+	// global var declaration*/
+	char softwareVersion[] = "2104.07";				///< software version
+	uint8_t device = BME280_TEMP_HUM;
+	bool serialBusy = false;
 
-// rain gauge global var
-uint8_t overturning				= LOW;			// it represents the status TRUE of the reed switch inside rain gauge
-uint16_t overturningCnt			= 0;			// is represents the number of overturning of the rain gauges
-ulong millisLastOverturn[2]		= { 0, 0 };
-static const uint8_t COUNTER	= 0;
-static const uint8_t FILTER		= 1;
-float rainRate[2]				= { 0, 0 };
-static const uint8_t mmSec		= 0;
-static const uint8_t mmHrs		= 1;
+	// rain gauge global var
+	uint8_t overturning				= LOW;			///< it represents the status TRUE of the reed switch inside rain gauge
+	uint16_t overturningCnt			= 0;			///< is represents the number of overturning of the rain gauges
+	ulong millisLastOverturn[2]		= { 0, 0 };
+	static const uint8_t COUNTER	= 0;
+	static const uint8_t FILTER		= 1;
+	RainRate rainRate;
 
-// input / output connected var
-uint8_t doRunState			= LOW;				// represents the state of GREEN led on sensor board
-uint8_t diRainGaugeSwitch	= LOW;				// represents the state of rain gouge switch
+	// input / output connected var
+	uint8_t doRunState			= LOW;				///< represents the state of GREEN led on sensor board
+	uint8_t diRainGaugeSwitch	= LOW;				///< represents the state of rain gouge switch
 #pragma endregion
 
 // the setup function runs once when you press reset or power the board
@@ -406,8 +404,8 @@ void rainGaugeManager()
 				// update millis value for counter
 				millisLastOverturn[COUNTER] = millis();
 				// calculate rain rate in mm/sec and mm/h
-				rainRate[mmSec] = RAIN_BUCKETS_CONSTANT / _intervalTimeSec;
-				rainRate[mmHrs] = rainRate[mmSec] * 3600;
+				rainRate.mmSec	= RAIN_BUCKETS_CONSTANT / _intervalTimeSec;
+				rainRate.mmHour = rainRate.mmSec * 3600;
 				_incCounter = true;
 			}
 			else
@@ -433,10 +431,10 @@ void rainGaugeManager()
 			Serial.println(overturningCnt);
 			Serial.println(F("Rain gauge rain rate:"));
 			Serial.print(F("> "));
-			Serial.print(rainRate[mmSec]);
+			Serial.print(rainRate.mmSec);
 			Serial.println(F(" mm/s"));
 			Serial.print(F("> "));
-			Serial.print(rainRate[mmHrs]);
+			Serial.print(rainRate.mmHour);
 			Serial.println(F(" mm/h"));
 			Serial.println();
 #endif
