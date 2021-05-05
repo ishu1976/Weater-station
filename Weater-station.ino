@@ -26,6 +26,7 @@
 #include <ModbusIP_ENC28J60.h>
 #include "include/AppConfig.h"
 #include "include/ModbusCfg.h"
+#include "include/Utility.h"
 
 #pragma region DECLARATIONS
 	// local defines
@@ -102,7 +103,7 @@ void setup()
 
 	// wait for the modbus slaves to be operational
 	delay(2500);
-
+	
 	// board setup is completed
 	doRunState = HIGH;
 }
@@ -218,14 +219,14 @@ void setModbusRequest(uint8_t device)
 			if (result == MB_SUCCESS)
 			{
 				// compile structured variable..
-				BME280Modbus.actualTemperature = Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
-				BME280Modbus.actualPressure = Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
-				BME280Modbus.actualHumidity = Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
+				BME280Modbus.actualTemperature	= Master_RTU.getResponseBuffer(ACTUAL_TEMPERATURE);
+				BME280Modbus.actualPressure		= Master_RTU.getResponseBuffer(ACTUAL_PRESSURE);
+				BME280Modbus.actualHumidity		= Master_RTU.getResponseBuffer(ACTUAL_HUMIDITY);
 				BME280Modbus.wetBulbTemperature = Master_RTU.getResponseBuffer(WET_BULB_TEMPERATURE);
-				BME280Modbus.dewPoint = Master_RTU.getResponseBuffer(DEW_POINT);
-				BME280Modbus.heatIndex = Master_RTU.getResponseBuffer(HEAT_INDEX);
-				BME280Modbus.absHumidity = Master_RTU.getResponseBuffer(ABS_HUMIDITY);
-				BME280Modbus.statusBME280 = Master_RTU.getResponseBuffer(BME280_STATUS);
+				BME280Modbus.dewPoint			= Master_RTU.getResponseBuffer(DEW_POINT);
+				BME280Modbus.heatIndex			= Master_RTU.getResponseBuffer(HEAT_INDEX);
+				BME280Modbus.absHumidity		= Master_RTU.getResponseBuffer(ABS_HUMIDITY);
+				BME280Modbus.statusBME280		= Master_RTU.getResponseBuffer(BME280_STATUS);
 			}
 			break;
 

@@ -9,6 +9,7 @@
 
 // dependencies
 #include "ModbusCfg.h"
+#include "Utility.h"
 
 // generic define
 #define ulong	unsigned long int	
@@ -23,6 +24,9 @@
 #define RAIN_BUCKETS_CONSTANT	0.3											///< represents the mm of rain fallen for each tipping of the buckets [mm]
 #define END_OF_EVENT_TIME		300000										///< represents the inactivity time of the rain gauge in seconds to cancel the rain rate data [ms]
 #define FILTERING_TIME			7500										///< represents the minimum time that must pass between one overturnand the next [ms] (7.5 = 480 overturns/hour = 144mm/h)
+
+// class definitions
+Utility filterFunctions[TOTAL_NR_OF_SLAVES];								///> Class utility for all slaves
 
 // structures
 struct RainRate
