@@ -9,7 +9,7 @@
 
 // dependencies
 #include "ModbusCfg.h"
-#include "Utility.h"
+#include "Filter.h"
 
 // generic define
 #define ulong	unsigned long int	
@@ -26,7 +26,8 @@
 #define FILTERING_TIME			7500										///< represents the minimum time that must pass between one overturnand the next [ms] (7.5 = 480 overturns/hour = 144mm/h)
 
 // class definitions
-Utility filterFunctions[TOTAL_NR_OF_SLAVES];								///> Class utility for all slaves
+Filter filterWindSpeed;														///> Class utility for anemometer
+Filter filterWindDirection;													///> Class utility for wind vane
 
 // structures
 struct RainRate

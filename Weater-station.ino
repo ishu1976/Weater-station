@@ -26,16 +26,17 @@
 #include <ModbusIP_ENC28J60.h>
 #include "include/AppConfig.h"
 #include "include/ModbusCfg.h"
-#include "include/Utility.h"
+#include "include/Filter.h"
 
 #pragma region DECLARATIONS
 	// local defines
 	#define SERIAL_PRINT							///< comment this define to deactivate print on serial monitor
 
 	// global var declaration*/
-	char softwareVersion[] = "2104.07";				///< software version
-	uint8_t device = BME280_TEMP_HUM;
-	bool serialBusy = false;
+	char softwareVersion[]		= "2104.07";		///< software version
+	uint8_t device				= BME280_TEMP_HUM;
+	bool serialBusy				= false;
+	float tempForCalc			= 0.0f;
 
 	// rain gauge global var
 	uint8_t overturning				= LOW;			///< it represents the status TRUE of the reed switch inside rain gauge
@@ -211,7 +212,7 @@ void setModbusRequest(uint8_t device)
 		// manages the modbus function for the device type required
 		switch (device)
 		{
-			// get all the values ​​related to the BME280 sensor
+		// get all the values ​​related to the BME280 sensor
 		case BME280_TEMP_HUM:
 			// write info about connection status
 			BME280Modbus.connectionStatus = result;
@@ -230,7 +231,7 @@ void setModbusRequest(uint8_t device)
 			}
 			break;
 
-			// get all the values ​​related to the anemometer sensor
+		// get all the values ​​related to the anemometer sensor
 		case ANEMOMETER:
 			// write info about connection status
 			Anemometer.connectionStatus = result;
@@ -239,10 +240,12 @@ void setModbusRequest(uint8_t device)
 			{
 				// compile structured variable..
 				Anemometer.actualWindSpeed = Master_RTU.getResponseBuffer(ACTUAL_WIND_SPEED);
+				// calculate average of last 10 minutes
+				Anemometer.averageWindSpeed = (word)filterWindSpeed.MovingAverage((float)Anemometer.actualWindSpeed);
 			}
 			break;
 
-			// get all the values ​​related to the wind vane sensor
+		// get all the values ​​related to the wind vane sensor
 		case WIND_VANE:
 			// write info about connection status
 			WindVane.connectionStatus = result;
@@ -251,6 +254,8 @@ void setModbusRequest(uint8_t device)
 			{
 				// compile structured variable..
 				WindVane.actualWindDirection = Master_RTU.getResponseBuffer(ACTUAL_WIND_DIRECTION);
+				// calculate average of last samples
+				WindVane.averageWindDirection = (word)filterWindDirection.MovingAverage((float)WindVane.actualWindDirection);
 			}
 			else
 			{
@@ -317,15 +322,23 @@ void printData(uint8_t device)
 
 	// print all the values ​​related to the anemometer sensor
 	case ANEMOMETER:
-		Serial.print(F("Actual wind speed.. "));
+		Serial.print(F("Actual wind speed... "));
 		Serial.print(Anemometer.actualWindSpeed / 10.0F);
+		Serial.println(F(" m/s"));
+
+		Serial.print(F("Average wind speed.. "));
+		Serial.print(Anemometer.averageWindSpeed / 10.0F);
 		Serial.println(F(" m/s"));
 		break;
 
 	// print all the values ​​related to the wind vane sensor
 	case WIND_VANE:
-		Serial.print(F("Wind direction..... <"));
+		Serial.print(F("Actual wind direction.... <"));
 		Serial.print(getActualWindDirection(WindVane.actualWindDirection));
+		Serial.println(F(">"));
+
+		Serial.print(F("Average wind direction... <"));
+		Serial.print(getActualWindDirection(WindVane.averageWindDirection));
 		Serial.println(F(">"));
 		break;
 	}

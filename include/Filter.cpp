@@ -1,23 +1,24 @@
 /*
- Name:		Utility.cpp
+ Name:		Filter.cpp
  Created:	05/05/2021
  Author:	Andrea Santinelli
 */
 
 // dependencies
-#include "Utility.h"
+#include "Filter.h"
 
-void Utility::Init()
+Filter::Filter(void)
 {
 	// clear buffer
 	memset(_movingAverageBuffer, 0, sizeof(_movingAverageBuffer));
 
 	// reset all internal variables
 	_samplesNr		= 0;
+	_averageValue	= 0;
 	_outputValue	= 0;
 }
 
-float Utility::MovingAverage(float pv)
+float Filter::MovingAverage(float pv)
 {
 	// load the first cell of the buffer
 	_movingAverageBuffer[BUFFER_ENTRY] = pv;
@@ -50,7 +51,7 @@ float Utility::MovingAverage(float pv)
 	return _averageValue;
 }
 
-float Utility::Kalman(float pv, float kv)
+float Filter::Kalman(float pv, float kv)
 {
 	// apply kalman filter
 	_outputValue += (constrain(0.0f, kv, 1.0f)) * (pv - _outputValue);

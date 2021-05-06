@@ -1,20 +1,20 @@
 /*
- Name:		Utility.h
+ Name:		Filter.h
  Created:	05/05/2021
  Author:	Andrea Santinelli
 */
 
-#ifndef _Utility_h
-#define _Utility_h
+#ifndef _Filter_h
+#define _Filter_h
 
 // dependencies
 #include "Arduino.h";
 
-class Utility
+class Filter
 {
 public:
 	// class methods
-	void Init();
+	Filter();
 	float MovingAverage(float);
 	float Kalman(float, float);
 
@@ -24,7 +24,7 @@ private:
 	{ // enumerated used to define a moving average buffer
 		BUFFER_ENTRY	= 0,
 		FIRST_ITEM		= 1,
-		LAST_ITEM		= 10, 	///> change this value if you want to increase buffer dimension
+		LAST_ITEM		= 40, 	///> change this value if you want to increase buffer dimension
 		TOTAL_NR_OF_ELEMENTS 	///> leave this last entry!!
 	};
 

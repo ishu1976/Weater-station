@@ -44,11 +44,14 @@ struct AnemometerData
 {	// structure used to define all parameters read from anemometer
 	word connectionStatus;
 	word actualWindSpeed;
+	word averageWindSpeed;
+	word maxWindSpeed;
 };
 struct WindVaneData
 {	// structure used to define all parameters read from wind vane
 	word connectionStatus;
 	word actualWindDirection;
+	word averageWindDirection;
 };
 
 #pragma region MODBUS MASTER RTU SECTION

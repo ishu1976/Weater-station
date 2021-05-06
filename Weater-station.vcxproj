@@ -117,12 +117,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AppConfig.h" />
+    <ClInclude Include="include\Filter.h" />
     <ClInclude Include="include\ModbusCfg.h" />
-    <ClInclude Include="include\Utility.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="__vm\.Weater-station.vsarduino.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="include\Utility.cpp" />
+    <ResourceCompile Include="Weater-station.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="include\Filter.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -30,12 +30,20 @@
     <ClInclude Include="include\AppConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\Utility.h">
+    <ClInclude Include="resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Filter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="include\Utility.cpp">
+    <ResourceCompile Include="Weater-station.rc">
+      <Filter>Misc Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="include\Filter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
