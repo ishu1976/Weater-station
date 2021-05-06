@@ -28,11 +28,13 @@ private:
 		TOTAL_NR_OF_ELEMENTS 	///> leave this last entry!!
 	};
 
-	// class variables
+	// moving average filter vars
 	word _movingAverageBuffer[TOTAL_NR_OF_ELEMENTS];
-	float _outputValue  = 0;
+	float _averageValue = 0;
 	uint8_t _index		= 0;
 	uint8_t _samplesNr	= 0;
+	// kalman filter vars
+	float _outputValue	= 0;
 };
 
 #endif

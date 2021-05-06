@@ -19,9 +19,6 @@ void Utility::Init()
 
 float Utility::MovingAverage(float pv)
 {
-	// local variables
-	float _averageValue = 0; 	///> average value calculated (is the filter output)
-
 	// load the first cell of the buffer
 	_movingAverageBuffer[BUFFER_ENTRY] = pv;
 

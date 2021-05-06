@@ -284,7 +284,7 @@ void printData(uint8_t device)
 	// print on serial monitor all the data of the selected device
 	switch (device)
 	{
-		// print all the values ​​related to the BME280 sensor
+	// print all the values ​​related to the BME280 sensor
 	case BME280_TEMP_HUM:
 		Serial.print(F("Dry temperature.... "));
 		Serial.print(BME280Modbus.actualTemperature / 10.0F);
@@ -315,14 +315,14 @@ void printData(uint8_t device)
 		Serial.println(F(" %"));
 		break;
 
-		// print all the values ​​related to the anemometer sensor
+	// print all the values ​​related to the anemometer sensor
 	case ANEMOMETER:
 		Serial.print(F("Actual wind speed.. "));
 		Serial.print(Anemometer.actualWindSpeed / 10.0F);
 		Serial.println(F(" m/s"));
 		break;
 
-		// print all the values ​​related to the wind vane sensor
+	// print all the values ​​related to the wind vane sensor
 	case WIND_VANE:
 		Serial.print(F("Wind direction..... <"));
 		Serial.print(getActualWindDirection(WindVane.actualWindDirection));
