@@ -38,17 +38,18 @@ float Filter::MovingAverage(float pv)
 		// load the first cell of the buffer
 		_movingAverageBuffer[0] = pv;
 
-		/* 
-		 count nr.of elements loaded (_bufferSize is the maximum)
-		 N.B. - this count is useful if you have large buffers. 
-		 It allows to have a realistic average even if not all elements 
-		 of the buffer are populated with valid data.
-		*/
+		// count nr.of elements loaded (_bufferSize is the maximum)
 		if (_samplesNr < _bufferSize)
 		{
 			_samplesNr++;
 		}
 
+		/*
+		 N.B. - in the next for statement is used '_samplesNr' instead of '_bufferSize'.
+		 This choice is useful especially if you use large buffers.
+		 It allows to have a realistic average even if not all elements
+		 of the buffer are yet populated with valid data.
+		*/
 		// move buffer forward and load cell [0]
 		for (_index = _samplesNr; _index >= 1; _index--)
 		{
