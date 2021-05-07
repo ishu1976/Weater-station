@@ -54,6 +54,10 @@
 // the setup function runs once when you press reset or power the board
 void setup()
 {
+	// init filter class
+	filterWindSpeed.Begin(40);
+	filterWindDirection.Begin(10);
+	
 	// define i/o mode
 	pinMode(RUN_LED, OUTPUT);
 	pinMode(RAIN_GAUGE_SWITCH, INPUT);
@@ -334,11 +338,13 @@ void printData(uint8_t device)
 	// print all the values ​​related to the wind vane sensor
 	case WIND_VANE:
 		Serial.print(F("Actual wind direction.... <"));
-		Serial.print(getActualWindDirection(WindVane.actualWindDirection));
+		//Serial.print(getActualWindDirection(WindVane.actualWindDirection));
+		Serial.print(WindVane.actualWindDirection);
 		Serial.println(F(">"));
 
 		Serial.print(F("Average wind direction... <"));
-		Serial.print(getActualWindDirection(WindVane.averageWindDirection));
+		//Serial.print(getActualWindDirection(WindVane.averageWindDirection));
+		Serial.print(WindVane.averageWindDirection);
 		Serial.println(F(">"));
 		break;
 	}
@@ -376,7 +382,7 @@ char* getActualWindDirection(uint8_t windDirection)
 	else if (windDirection == SUD_WEST)			return "SUD_WEST";
 	else if (windDirection == WEST_SUD_WEST)	return "WEST_SUD_WEST";
 	else if (windDirection == WEST)				return "WEST";
-	else if (windDirection == OVEST_NORD_WEST)	return "OVEST_NORD_WEST";
+	else if (windDirection == WEST_NORD_WEST)	return "WEST_NORD_WEST";
 	else if (windDirection == NORD_WEST)		return "NORD_WEST";
 	else if (windDirection == NORD_NORD_WEST)	return "NORD_NORD_WEST";
 	else if (windDirection == NOT_VALID)		return "NOT_VALID";

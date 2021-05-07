@@ -22,11 +22,11 @@
 // structures
 struct ModbusSlaveConfig
 {	// structure used to define a modbus read/write function
-	uint8_t slaveId = 0;
-	uint8_t readAddr = 0;
-	uint8_t readQty = 0;
-	uint8_t writeAddr = 0;
-	uint8_t writeQty = 0;
+	uint8_t slaveId		= 0;
+	uint8_t readAddr	= 0;
+	uint8_t readQty		= 0;
+	uint8_t writeAddr	= 0;
+	uint8_t writeQty	= 0;
 };
 struct BME280ModbusData
 {	// structure used to define all parameters read from BME280

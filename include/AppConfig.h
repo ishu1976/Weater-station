@@ -52,7 +52,7 @@ enum windDirection
 	SUD_WEST,
 	WEST_SUD_WEST,
 	WEST,
-	OVEST_NORD_WEST,
+	WEST_NORD_WEST,
 	NORD_WEST,
 	NORD_NORD_WEST,
 	NOT_VALID // leave this last entry!!
